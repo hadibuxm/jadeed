@@ -1,0 +1,45 @@
+{% extends "accounts/base.html" %}
+{% block title %}Sign up{% endblock %}
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+      <div class="card shadow-sm">
+        <div class="card-header bg-brand text-brand-contrast">
+          <h1 class="h5 m-0">Create an account</h1>
+        </div>
+        <div class="card-body">
+          {% if form.non_field_errors %}
+            <div class="alert alert-danger" role="alert">
+              {{ form.non_field_errors }}
+            </div>
+          {% endif %}
+          <form method="post" novalidate>
+            {% csrf_token %}
+            <div class="mb-3">
+              <label class="form-label" for="id_username">Username</label>
+              {{ form.username }}
+              <div class="text-danger small">{{ form.username.errors }}</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="id_email">Email</label>
+              {{ form.email }}
+              <div class="text-danger small">{{ form.email.errors }}</div>
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="id_password1">Password</label>
+              {{ form.password1 }}
+              <div class="text-danger small">{{ form.password1.errors }}</div>
+            </div>
+            <div class="mb-4">
+              <label class="form-label" for="id_password2">Confirm password</label>
+              {{ form.password2 }}
+              <div class="text-danger small">{{ form.password2.errors }}</div>
+            </div>
+            <button class="btn btn-brand w-100" type="submit">Create account</button>
+          </form>
+          <p class="mt-3 mb-0 text-muted">Already have an account? <a href="{% url 'accounts:login' %}">Sign in</a></p>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

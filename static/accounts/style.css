@@ -1,0 +1,51 @@
+/* Basic placeholder styles for accounts */
+:root {
+  --fg: #1b1f24;
+  --bg: #f8fafc;
+  --brand: #41a4ff; /* light, friendly blue */
+  --brand-contrast: #0b2239;
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol';
+}
+
+html, body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--fg);
+  background: var(--bg);
+  font-family: var(--font);
+}
+
+main {
+  max-width: 720px;
+  margin: 4rem auto;
+  padding: 0 1rem;
+}
+
+h1 {
+  color: var(--brand);
+  font-size: 1.8rem;
+  margin-bottom: 0.5rem;
+}
+
+p {
+  color: #444;
+}
+
+/* Brand helpers */
+.bg-brand {
+  background: #eaf5ff;
+}
+.text-brand { color: var(--brand); }
+.text-brand-contrast { color: var(--brand-contrast); }
+.btn-brand {
+  --bs-btn-color: #fff;
+  --bs-btn-bg: var(--brand);
+  --bs-btn-border-color: var(--brand);
+  --bs-btn-hover-color: #fff;
+  --bs-btn-hover-bg: #1f8ef5;
+  --bs-btn-hover-border-color: #1f8ef5;
+  --bs-btn-focus-shadow-rgb: 65, 164, 255;
+}

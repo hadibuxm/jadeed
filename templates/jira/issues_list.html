@@ -1,0 +1,24 @@
+{% extends "accounts/base.html" %}
+{% block title %}My Jira Issues{% endblock %}
+{% block content %}
+  <div class="d-flex align-items-center justify-content-between mb-3">
+    <h1 class="h4 m-0">My Jira Issues{% if cloud_name %} – {{ cloud_name }}{% endif %}</h1>
+    <a class="btn btn-outline-dark" href="{% url 'jira:connect' %}">Reconnect</a>
+  </div>
+  {% if not issues %}
+    <div class="alert alert-info">No recent assigned issues found.</div>
+  {% else %}
+    <div class="list-group">
+      {% for i in issues %}
+        <a class="list-group-item list-group-item-action" href="{% url 'jira:issue_edit' i.key %}">
+          <div class="d-flex w-100 justify-content-between">
+            <h5 class="mb-1">{{ i.key }} — {{ i.fields.summary }}</h5>
+            <small class="text-muted">{{ i.fields.status.name }}</small>
+          </div>
+          <small class="text-muted">Updated {{ i.fields.updated }}</small>
+        </a>
+      {% endfor %}
+    </div>
+  {% endif %}
+{% endblock %}
+

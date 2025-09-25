@@ -1,0 +1,31 @@
+{% extends "accounts/base.html" %}
+{% block title %}Edit {{ key }}{% endblock %}
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-10 col-lg-8">
+      <div class="card shadow-sm">
+        <div class="card-header bg-brand text-brand-contrast">
+          <h1 class="h5 m-0">Edit issue {{ key }}</h1>
+        </div>
+        <div class="card-body">
+          <form method="post">
+            {% csrf_token %}
+            <div class="mb-3">
+              <label class="form-label" for="id_summary">Summary</label>
+              <input class="form-control" id="id_summary" name="summary" type="text" value="{{ summary }}" />
+            </div>
+            <div class="mb-3">
+              <label class="form-label" for="id_description">Description</label>
+              <textarea class="form-control" id="id_description" name="description" rows="6">{{ description }}</textarea>
+            </div>
+            <div class="d-flex gap-2">
+              <a class="btn btn-outline-dark" href="{% url 'jira:issues' %}">Cancel</a>
+              <button class="btn btn-brand" type="submit">Save changes</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+

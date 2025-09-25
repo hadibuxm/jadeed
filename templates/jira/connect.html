@@ -1,0 +1,18 @@
+{% extends "accounts/base.html" %}
+{% block title %}Connect Jira{% endblock %}
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+      <div class="card shadow-sm">
+        <div class="card-header bg-brand text-brand-contrast">
+          <h1 class="h5 m-0">Connect to Atlassian</h1>
+        </div>
+        <div class="card-body">
+          <p class="text-muted">To view and edit your Jira issues, connect your Atlassian account.</p>
+          <a class="btn btn-brand" href="{% url 'jira:connect' %}">Connect Atlassian</a>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+
