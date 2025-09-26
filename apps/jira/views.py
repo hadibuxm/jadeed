@@ -1,10 +1,12 @@
 import time
 from datetime import datetime, timezone
+from typing import Any
+
 from django.contrib.auth.decorators import login_required
-from django.shortcuts import redirect, render, get_object_or_404
+from django.shortcuts import redirect, render
 from django.http import HttpResponseBadRequest, HttpResponse
-from django.urls import reverse
 from django.conf import settings
+
 from .models import AtlassianConnection
 from .oauth import (
     create_pkce_pair,
@@ -34,6 +36,54 @@ def _random_state() -> str:
     import secrets
 
     return secrets.token_urlsafe(16)
+
+
+def _flatten_adf_node(node: Any) -> str:
+    if isinstance(node, dict):
+        node_type = node.get("type")
+        if node_type == "text":
+            return node.get("text", "")
+        if node_type == "hardBreak":
+            return "\n"
+        content = node.get("content", [])
+        child_text = [_flatten_adf_node(child) for child in content]
+        if node_type in {"bulletList", "orderedList"}:
+            items = [text.strip("\n") for text in child_text if text]
+            return "\n".join(items)
+        return "".join(child_text)
+    if isinstance(node, list):
+        return "".join(_flatten_adf_node(child) for child in node)
+    return ""
+
+
+def _adf_to_plaintext(document: Any) -> str:
+    if isinstance(document, str):
+        return document
+    if not isinstance(document, dict):
+        return ""
+    blocks = []
+    for node in document.get("content", []):
+        block_text = _flatten_adf_node(node)
+        if block_text:
+            blocks.append(block_text.strip("\n"))
+    return "\n\n".join(blocks)
+
+
+def _plaintext_to_adf(text: str) -> dict[str, Any]:
+    lines = text.split("\n")
+    content: list[dict[str, Any]] = []
+    for index, line in enumerate(lines):
+        if line:
+            content.append({"type": "text", "text": line})
+        if index < len(lines) - 1:
+            content.append({"type": "hardBreak"})
+    if not content:
+        content = [{"type": "text", "text": ""}]
+    return {
+        "type": "doc",
+        "version": 1,
+        "content": [{"type": "paragraph", "content": content}],
+    }
 
 
 def _pick_jira_resource(resources):
@@ -138,13 +188,16 @@ def edit_issue(request, key: str):
     # On GET: fetch issue details
     issue_url = f"{API_BASE}/ex/jira/{conn.cloud_id}/rest/api/3/issue/{key}"
     if request.method == "POST":
-        summary = request.POST.get("summary", "").strip()
-        description = request.POST.get("description", "").strip()
+        summary = (request.POST.get("summary") or "").strip()
+        raw_description = request.POST.get("description")
+        description_text = (raw_description or "").strip()
         payload = {"fields": {}}
         if summary:
             payload["fields"]["summary"] = summary
-        if description:
-            payload["fields"]["description"] = description
+        if raw_description is not None:
+            payload["fields"]["description"] = (
+                _plaintext_to_adf(description_text) if description_text else None
+            )
         if payload["fields"]:
             r = api_request(access_token, "PUT", issue_url, json=payload)
             if r.status_code not in (200, 204):
@@ -155,13 +208,14 @@ def edit_issue(request, key: str):
     r.raise_for_status()
     issue = r.json()
     fields = issue.get("fields", {})
+    description_value = fields.get("description", "")
     return render(
         request,
         "jira/issue_edit.html",
         {
             "key": key,
             "summary": fields.get("summary", ""),
-            "description": fields.get("description", ""),
+            "description": _adf_to_plaintext(description_value),
         },
     )
 

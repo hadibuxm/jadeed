@@ -1,9 +1,10 @@
-from django.test import TestCase, override_settings
+from django.test import TestCase, override_settings, SimpleTestCase
 from django.urls import reverse
 from django.contrib.auth import get_user_model
 from unittest.mock import patch
 
 from .oauth import create_pkce_pair, build_authorize_url
+from .views import _adf_to_plaintext, _plaintext_to_adf
 from .models import AtlassianConnection
 
 
@@ -145,5 +146,17 @@ class IssuesViewTests(TestCase):
         self.assertIn("conf-123", first_call_url)
         self.assertIn("jira-456", second_call_url)
 
+
+class DescriptionConversionTests(SimpleTestCase):
+    def test_plaintext_to_adf_round_trip(self):
+        text = "Line one\nLine two"
+        document = _plaintext_to_adf(text)
+        self.assertEqual(document["type"], "doc")
+        self.assertEqual(document["version"], 1)
+        self.assertEqual(_adf_to_plaintext(document), text)
+
+    def test_adf_to_plaintext_handles_empty(self):
+        self.assertEqual(_adf_to_plaintext(None), "")
+        self.assertEqual(_adf_to_plaintext({"type": "doc", "content": []}), "")
 
 # Create your tests here.
