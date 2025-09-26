@@ -6,7 +6,15 @@ from django.http import HttpResponseBadRequest, HttpResponse
 from django.urls import reverse
 from django.conf import settings
 from .models import AtlassianConnection
-from .oauth import create_pkce_pair, build_authorize_url, exchange_token, get_accessible_resources, refresh_access_token, api_request, API_BASE
+from .oauth import (
+    create_pkce_pair,
+    build_authorize_url,
+    exchange_token,
+    get_accessible_resources,
+    refresh_access_token,
+    api_request,
+    API_BASE,
+)
 import requests
 
 
@@ -28,6 +36,18 @@ def _random_state() -> str:
     return secrets.token_urlsafe(16)
 
 
+def _pick_jira_resource(resources):
+    """Return the first accessible Jira resource, if any."""
+    for resource in resources:
+        resource_type = (resource.get("resourceType") or "").lower()
+        scopes = resource.get("scopes") or []
+        is_jira_scope = any("jira" in scope for scope in scopes)
+        if resource_type == "jira" or is_jira_scope:
+            if resource.get("id") or resource.get("cloudId"):
+                return resource
+    return None
+
+
 @login_required
 def callback(request):
     state = request.GET.get("state")
@@ -47,15 +67,14 @@ def callback(request):
         detail = resp.text if resp is not None else str(e)
         return HttpResponse(f"Token exchange failed ({getattr(resp,'status_code', 'error')}): {detail}", status=getattr(resp,'status_code', 400))
     resources = get_accessible_resources(token["access_token"])
-    # Pick the first Jira resource
-    jira_res = next((r for r in resources if r.get("scopes") or r.get("id")), None)
+    jira_res = _pick_jira_resource(resources) or (resources[0] if resources else None)
     conn, _ = AtlassianConnection.objects.get_or_create(user=request.user)
     conn.access_token = token.get("access_token", "")
     conn.refresh_token = token.get("refresh_token", "")
     conn.token_type = token.get("token_type", "")
     conn.scope = settings.ATLASSIAN_SCOPES
     if jira_res:
-        conn.cloud_id = jira_res.get("id", "")
+        conn.cloud_id = jira_res.get("id") or jira_res.get("cloudId", "")
         conn.cloud_name = jira_res.get("name", "")
     # expires_at
     expires_epoch = token.get("expires_at_epoch")
@@ -92,8 +111,19 @@ def issues(request):
         "fields": "summary,status,assignee,updated",
         "maxResults": 50,
     }
-    url = f"{API_BASE}/ex/jira/{conn.cloud_id}/rest/api/3/search"
+    url = f"{API_BASE}/ex/jira/{conn.cloud_id}/rest/api/3/search/jql"
     r = api_request(access_token, "GET", url, params=params)
+    if r.status_code == 410:
+        resources = get_accessible_resources(access_token)
+        jira_res = _pick_jira_resource(resources)
+        new_cloud_id = (jira_res.get("id") if jira_res else None) or ""
+        if new_cloud_id and new_cloud_id != conn.cloud_id:
+            conn.cloud_id = new_cloud_id
+            if jira_res.get("name"):
+                conn.cloud_name = jira_res.get("name")
+            conn.save(update_fields=["cloud_id", "cloud_name", "updated_at"])
+            url = f"{API_BASE}/ex/jira/{conn.cloud_id}/rest/api/3/search/jql"
+            r = api_request(access_token, "GET", url, params=params)
     r.raise_for_status()
     data = r.json()
     return render(request, "jira/issues_list.html", {"issues": data.get("issues", []), "cloud_name": conn.cloud_name})
