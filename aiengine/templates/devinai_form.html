@@ -1,0 +1,23 @@
+<!-- aiengine/templates/devinai_form.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevinAI Integration</title>
+</head>
+<body>
+    <h1>DevinAI API Integration</h1>
+    <form method="post" action="{% url 'devinai_integration' %}">
+        {% csrf_token %}
+        <label for="input_data">Enter Input Data:</label>
+        <input type="text" id="input_data" name="input_data" required>
+        <button type="submit">Send to DevinAI</button>
+    </form>
+
+    {% if response %}
+        <h2>API Response:</h2>
+        <pre>{{ response|safe }}</pre>
+    {% endif %}
+</body>
+</html>

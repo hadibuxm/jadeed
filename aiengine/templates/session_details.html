@@ -1,0 +1,24 @@
+<!-- aiengine/templates/session_details.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Session Details</title>
+</head>
+<body>
+    <h1>Session Details</h1>
+    {% if session %}
+        <h2>Session ID: {{ session.session_id }}</h2>
+        <p><strong>Title:</strong> {{ session.title }}</p>
+        <p><strong>Status:</strong> {{ session.status }}</p>
+        <p><strong>Created At:</strong> {{ session.created_at }}</p>
+        <p><strong>Updated At:</strong> {{ session.updated_at }}</p>
+        <p><strong>Prompt:</strong> {{ session.prompt }}</p>
+        <p><strong>Tags:</strong> {{ session.tags|join:", " }}</p>
+        <p><strong>Response:</strong> {{ session.response }}</p>
+    {% else %}
+        <p>Session not found.</p>
+    {% endif %}
+</body>
+</html>

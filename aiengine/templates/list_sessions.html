@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevinAI Sessions</title>
+</head>
+<body>
+    <h1>DevinAI Sessions</h1>
+    {% if sessions %}
+        <table border="1">
+            <thead>
+                <tr>
+                    <th>Session ID</th>
+                    <th>Status</th>
+                    <th>Title</th>
+                    <th>Created At</th>
+                    <th>Updated At</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for session in sessions %}
+                    <tr>
+                        <td>{{ session.session_id }}</td>
+                        <td>{{ session.status }}</td>
+                        <td>{{ session.title }}</td>
+                        <td>{{ session.created_at }}</td>
+                        <td>{{ session.updated_at }}</td>
+                        <td><a href="{{ session.pull_request.url }}" target="_blank">View PR</a></td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No sessions found.</p>
+    {% endif %}
+</body>
+</html>

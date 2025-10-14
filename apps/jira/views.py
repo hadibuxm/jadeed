@@ -158,7 +158,7 @@ def issues(request):
     # Fetch current user's issues
     params = {
         "jql": "assignee=currentUser() ORDER BY updated DESC",
-        "fields": "summary,status,assignee,updated",
+        "fields": "summary,status,assignee,updated,issuetype",  # Added issuetype here
         "maxResults": 50,
     }
     url = f"{API_BASE}/ex/jira/{conn.cloud_id}/rest/api/3/search/jql"
