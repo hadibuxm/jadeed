@@ -17,9 +17,12 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 
+from .views import home_redirect
+
 urlpatterns = [
+    path("", home_redirect, name="home"),
     path("admin/", admin.site.urls),
     path("accounts/", include(("apps.accounts.urls", "accounts"), namespace="accounts")),
     path("jira/", include(("apps.jira.urls", "jira"), namespace="jira")),
-     path('aiengine/', include('aiengine.urls')),
+    path('aiengine/', include('aiengine.urls'))
 ]

@@ -159,4 +159,68 @@ class DescriptionConversionTests(SimpleTestCase):
         self.assertEqual(_adf_to_plaintext(None), "")
         self.assertEqual(_adf_to_plaintext({"type": "doc", "content": []}), "")
 
+
+@override_settings(
+    ATLASSIAN_CLIENT_ID="abc",
+    ATLASSIAN_REDIRECT_URI="http://testserver/jira/callback/",
+    ATLASSIAN_SCOPES="read:jira-user read:jira-work",
+)
+class DeleteIssueViewTests(TestCase):
+    def setUp(self):
+        User = get_user_model()
+        self.user = User.objects.create_user(username="deleter", password="p")
+        self.connection = AtlassianConnection.objects.create(
+            user=self.user,
+            access_token="token",
+            refresh_token="refresh",
+            cloud_id="conf-123",
+            cloud_name="Conf",
+        )
+
+    @staticmethod
+    def _make_response(status_code, payload=None):
+        class FakeResponse:
+            def __init__(self, code, data):
+                self.status_code = code
+                self._data = data or {}
+                self.text = ""
+
+            def json(self):
+                return self._data
+
+            def raise_for_status(self):
+                pass
+
+        return FakeResponse(status_code, payload)
+
+    @patch("apps.jira.views.api_request")
+    @patch("apps.jira.views._ensure_access_token")
+    def test_get_renders_confirmation(self, mock_ensure, mock_api):
+        mock_ensure.return_value = "access-token"
+        mock_api.return_value = self._make_response(200, {"fields": {"summary": "Clean up issue"}})
+
+        self.client.login(username="deleter", password="p")
+        resp = self.client.get(reverse("jira:issue_delete", args=["ISSUE-5"]))
+
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.context["summary"], "Clean up issue")
+        request_args = mock_api.call_args
+        self.assertEqual(request_args.args[1], "GET")
+        self.assertIn("/issue/ISSUE-5", request_args.args[2])
+
+    @patch("apps.jira.views.api_request")
+    @patch("apps.jira.views._ensure_access_token")
+    def test_post_deletes_and_redirects(self, mock_ensure, mock_api):
+        mock_ensure.return_value = "access-token"
+        mock_api.return_value = self._make_response(204)
+
+        self.client.login(username="deleter", password="p")
+        resp = self.client.post(reverse("jira:issue_delete", args=["ISSUE-5"]))
+
+        self.assertEqual(resp.status_code, 302)
+        self.assertEqual(resp["Location"], reverse("jira:issues"))
+        request_args = mock_api.call_args
+        self.assertEqual(request_args.args[1], "DELETE")
+        self.assertIn("/issue/ISSUE-5", request_args.args[2])
+
 # Create your tests here.

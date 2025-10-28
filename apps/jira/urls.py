@@ -8,5 +8,5 @@ urlpatterns = [
     path("callback/", views.callback, name="callback"),
     path("issues/", views.issues, name="issues"),
     path("issues/<str:key>/edit/", views.edit_issue, name="issue_edit"),
+    path("issues/<str:key>/delete/", views.delete_issue, name="issue_delete"),
 ]
-

@@ -1,0 +1,25 @@
+{% extends "accounts/base.html" %}
+{% block title %}Delete {{ key }}{% endblock %}
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-12 col-md-8 col-lg-6">
+      <div class="card shadow-sm border-danger">
+        <div class="card-header bg-danger text-white">
+          <h1 class="h5 m-0">Delete issue {{ key }}</h1>
+        </div>
+        <div class="card-body">
+          <p class="mb-4">
+            Are you sure you want to permanently delete <strong>{{ key }}</strong>{% if summary %} — "{{ summary }}"{% endif %}? This action cannot be undone.
+          </p>
+          <form method="post">
+            {% csrf_token %}
+            <div class="d-flex gap-2">
+              <a class="btn btn-outline-dark" href="{% url 'jira:issue_edit' key %}">Cancel</a>
+              <button class="btn btn-danger" type="submit">Delete issue</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

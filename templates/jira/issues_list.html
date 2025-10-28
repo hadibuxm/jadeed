@@ -32,12 +32,12 @@
                 </h6>
                 
                 <!-- Issue Type Label with Badge -->
-                <small class=" 
-                  {% if i.fields.issuetype.name == 'Story' %}badge-info
-                  {% elif i.fields.issuetype.name == 'Task' %}badge-primary
-                  {% elif i.fields.issuetype.name == 'Bug' %}badge-danger
-                  {% else %}badge-secondary{% endif %}">
-                  <b>{{ i.fields.issuetype.name }}</b>
+              <small class=" 
+                {% if i.fields.issuetype.name == 'Story' %}badge-info
+                {% elif i.fields.issuetype.name == 'Task' %}badge-primary
+                {% elif i.fields.issuetype.name == 'Bug' %}badge-danger
+                {% else %}badge-secondary{% endif %}">
+                <b>{{ i.fields.issuetype.name }}</b>
               </small>
               </div>
 
@@ -50,8 +50,58 @@
               <div class="d-flex align-items-center mb-3">
                 <small>
                   <b>Status: </b>{{ i.fields.status.name }}
-              </small>
+                </small>
               </div>
+
+              <!-- Assignee Section -->
+              <div class="d-flex align-items-center mb-3">
+                <small>
+                  <b>Assignee: </b>{{ i.fields.assignee.displayName }}
+                </small>
+              </div>
+
+              <!-- Labels Section -->
+              <div class="d-flex align-items-center mb-3">
+                <small>
+                  <b>Labels: </b>
+                  {% if i.fields.labels %}
+                    {{ i.fields.labels|join:', ' }}
+                  {% else %}
+                    No labels
+                  {% endif %}
+                </small>
+              </div>
+
+              <!-- Reporter Section -->
+              <div class="d-flex align-items-center mb-3">
+                <small>
+                  <b>Reporter: </b>{{ i.fields.reporter.displayName }}
+                </small>
+              </div>
+
+              <!-- Development Section -->
+              {% if i.fields.development %}
+                <div class="d-flex align-items-center mb-3">
+                  <small>
+                    <b>Development: </b>
+                    {% if i.fields.development.branch %}
+                      <span>Branch: {{ i.fields.development.branch }}</span>
+                    {% endif %}
+                    {% if i.fields.development.commit %}
+                      <span class="ml-3">Commit: {{ i.fields.development.commit }}</span>
+                    {% endif %}
+                    {% if i.fields.development.pullRequest %}
+                      <span class="ml-3">Pull Request: {{ i.fields.development.pullRequest }}</span>
+                    {% endif %}
+                  </small>
+                </div>
+              {% else %}
+                <div class="d-flex align-items-center mb-3">
+                  <small>
+                    <b>Development: </b> No development details available.
+                  </small>
+                </div>
+              {% endif %}
 
               <!-- Spacer to ensure alignment of button -->
               <div class="mt-auto"></div>

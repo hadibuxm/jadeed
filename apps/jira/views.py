@@ -158,7 +158,7 @@ def issues(request):
     # Fetch current user's issues
     params = {
         "jql": "assignee=currentUser() ORDER BY updated DESC",
-        "fields": "summary,status,assignee,updated,issuetype",  # Added issuetype here
+        "fields": "summary,status,assignee,updated,issuetype,labels,reporter,development", # Added issuetype here
         "maxResults": 50,
     }
     url = f"{API_BASE}/ex/jira/{conn.cloud_id}/rest/api/3/search/jql"
@@ -216,6 +216,36 @@ def edit_issue(request, key: str):
             "key": key,
             "summary": fields.get("summary", ""),
             "description": _adf_to_plaintext(description_value),
+        },
+    )
+
+
+@login_required
+def delete_issue(request, key: str):
+    conn = getattr(request.user, "atlassian_connection", None)
+    if not conn or not conn.access_token or not conn.cloud_id:
+        return redirect("jira:issues")
+    access_token = _ensure_access_token(conn)
+    issue_url = f"{API_BASE}/ex/jira/{conn.cloud_id}/rest/api/3/issue/{key}"
+
+    if request.method == "POST":
+        response = api_request(access_token, "DELETE", issue_url)
+        if response.status_code not in (200, 204):
+            return HttpResponse(f"Failed to delete: {response.text}", status=response.status_code)
+        return redirect("jira:issues")
+
+    response = api_request(access_token, "GET", issue_url, params={"fields": "summary"})
+    if response.status_code == 404:
+        return HttpResponse("Issue not found", status=404)
+    response.raise_for_status()
+    issue = response.json()
+    summary = issue.get("fields", {}).get("summary", "")
+    return render(
+        request,
+        "jira/issue_confirm_delete.html",
+        {
+            "key": key,
+            "summary": summary,
         },
     )
 
