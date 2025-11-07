@@ -50,6 +50,7 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.jira",
     'aiengine',
+    'github',
 ]
 
 MIDDLEWARE = [
@@ -147,3 +148,9 @@ ATLASSIAN_SCOPES = os.environ.get(
     "ATLASSIAN_SCOPES",
     "read:jira-user read:jira-work write:jira-work offline_access",
 )
+
+# GitHub OAuth config
+GITHUB_CLIENT_ID = os.environ.get("GITHUB_CLIENT_ID", "Ov23li06CzpdvO5lQbpi")
+GITHUB_CLIENT_SECRET = os.environ.get("GITHUB_CLIENT_SECRET", "30dcb44c28860ed52ece20f6846f66a1db2f3952")
+GITHUB_REDIRECT_URI = os.environ.get("GITHUB_REDIRECT_URI", "http://localhost:8000/github/callback/")
+GITHUB_SCOPES = os.environ.get("GITHUB_SCOPES", "repo user")
