@@ -1,0 +1,201 @@
+{% extends "accounts/base.html" %}
+{% load static %}
+{% block title %}GitHub Workspace{% endblock %}
+{% block extra_css %}
+  <link rel="stylesheet" href="{% static 'github/style.css' %}">
+{% endblock %}
+{% block content %}
+<div class="github-dashboard">
+  <section class="hero-card card border-0 overflow-hidden text-white">
+    <div class="card-body p-4 p-md-5">
+      <div class="row align-items-center g-4">
+        <div class="col-lg-7">
+          <p class="text-uppercase small fw-semibold tracking-wide text-white-50 mb-2">GitHub overview</p>
+          <h1 class="display-5 fw-semibold mb-3">
+            {% firstof github_user.name github_user.login "GitHub workspace" %}
+          </h1>
+          <p class="lead mb-4 text-white-75">
+            Stay on top of pull requests, active repositories, and team activity without leaving Jadeed.
+          </p>
+          <div class="d-flex flex-wrap gap-3">
+            <a class="btn btn-light btn-lg" href="{{ connect_url|default:'#' }}">Manage integration</a>
+            <a class="btn btn-outline-light btn-lg" href="{{ new_repo_url|default:'#' }}">Create repository</a>
+          </div>
+        </div>
+        <div class="col-lg-5">
+          <div class="stats-card h-100 rounded-4 p-4">
+            <div class="metric">
+              <span class="metric-label">Open pull requests</span>
+              <span class="metric-value">{{ open_pr_count|default:0 }}</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Open issues</span>
+              <span class="metric-value">{{ open_issue_count|default:0 }}</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Repositories watched</span>
+              <span class="metric-value">{{ repo_count|default:0 }}</span>
+            </div>
+            <div class="metric">
+              <span class="metric-label">Last sync</span>
+              <span class="metric-value small">{% firstof last_synced "Not synced yet" %}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="hero-glow" aria-hidden="true"></div>
+  </section>
+
+  <section class="mt-5">
+    <div class="row g-4">
+      <div class="col-md-4">
+        <div class="stat-card card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <span class="stat-label">Active repos</span>
+            <div class="stat-value">{{ active_repo_count|default:repo_count|default:0 }}</div>
+            <p class="stat-footnote">Repos with commits in the past 7 days.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="stat-card card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <span class="stat-label">Pending reviews</span>
+            <div class="stat-value">{{ pending_reviews|default:0 }}</div>
+            <p class="stat-footnote">Pull requests awaiting your review.</p>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="stat-card card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <span class="stat-label">Deploy-ready</span>
+            <div class="stat-value">{{ ready_to_merge|default:0 }}</div>
+            <p class="stat-footnote">PRs with all checks passing.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="mt-5">
+    <div class="d-flex flex-wrap align-items-center justify-content-between gap-3 mb-3">
+      <h2 class="h4 m-0">Repositories</h2>
+      {% if github_user.html_url %}
+        <a class="btn btn-sm btn-outline-secondary" href="{{ github_user.html_url }}" target="_blank" rel="noopener">View on GitHub</a>
+      {% endif %}
+    </div>
+    <div class="card border-0 shadow-sm">
+      <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+          <thead class="table-light">
+            <tr>
+              <th scope="col">Repository</th>
+              <th scope="col" class="text-center">Stars</th>
+              <th scope="col" class="text-center">Open issues</th>
+              <th scope="col" class="text-center">Pull requests</th>
+              <th scope="col" class="text-end">Updated</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if repos %}
+              {% for repo in repos %}
+                <tr>
+                  <td>
+                    <a class="repo-name" href="{% firstof repo.html_url '#' %}" target="_blank" rel="noopener">
+                      {{ repo.name|default:'Unnamed repository' }}
+                    </a>
+                    <p class="repo-description mb-0">{{ repo.description|default:'No description provided.' }}</p>
+                  </td>
+                  <td class="text-center">
+                    <span class="badge rounded-pill text-bg-warning">★ {{ repo.stargazers_count|default:0 }}</span>
+                  </td>
+                  <td class="text-center">{{ repo.open_issues_count|default:0 }}</td>
+                  <td class="text-center">{{ repo.open_pr_count|default:0 }}</td>
+                  <td class="text-end text-muted small">
+                    {% firstof repo.pushed_at repo.updated_at repo.created_at "—" %}
+                  </td>
+                </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="5" class="text-center py-5">
+                  <div class="empty-state">
+                    <h3 class="h5">No repositories yet</h3>
+                    <p class="text-muted mb-3">Connect your GitHub organization or create a repository to see it here.</p>
+                    <a class="btn btn-primary" href="{{ new_repo_url|default:'#' }}">Create your first repository</a>
+                  </div>
+                </td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="mt-5">
+    <div class="row g-4">
+      <div class="col-lg-8">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <div class="d-flex align-items-center justify-content-between mb-3">
+              <h2 class="h5 m-0">Recent activity</h2>
+              {% if activity_url %}
+                <a class="btn btn-sm btn-outline-secondary" href="{{ activity_url }}" target="_blank" rel="noopener">Open in GitHub</a>
+              {% endif %}
+            </div>
+            {% if activity %}
+              <ol class="activity-timeline list-unstyled m-0">
+                {% for event in activity %}
+                  <li class="timeline-item">
+                    <div class="timeline-indicator"></div>
+                    <div class="timeline-content">
+                      <div class="d-flex flex-wrap gap-2 justify-content-between">
+                        <a class="activity-title" href="{% firstof event.url '#' %}" target="_blank" rel="noopener">
+                          {{ event.title|default:'Activity' }}
+                        </a>
+                        <span class="activity-time text-muted">{% firstof event.timestamp event.created_at "Just now" %}</span>
+                      </div>
+                      {% if event.summary %}
+                        <p class="activity-summary mb-0">{{ event.summary }}</p>
+                      {% endif %}
+                    </div>
+                  </li>
+                {% endfor %}
+              </ol>
+            {% else %}
+              <div class="empty-state text-center py-4">
+                <h3 class="h6">Quiet moment</h3>
+                <p class="text-muted mb-0">We’ll populate this feed as activity comes in from GitHub.</p>
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="card border-0 shadow-sm h-100">
+          <div class="card-body">
+            <h2 class="h5">Automation ideas</h2>
+            <ul class="list-unstyled automation-list mb-0">
+              <li>
+                <span class="automation-title">Auto-assign reviewers</span>
+                <p class="automation-description">Route new pull requests to the right teammates by default.</p>
+              </li>
+              <li>
+                <span class="automation-title">Sync Jira issues</span>
+                <p class="automation-description">Link GitHub branches with Jira issues for traceability.</p>
+              </li>
+              <li>
+                <span class="automation-title">Deploy guardrails</span>
+                <p class="automation-description">Trigger staging deploys when PR checks pass and labels match.</p>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+{% endblock %}

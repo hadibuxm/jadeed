@@ -1,0 +1,243 @@
+.github-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 3rem;
+}
+
+.github-dashboard .hero-card {
+  background: radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.2), transparent 40%),
+    linear-gradient(135deg, #3a2dd6, #6f4ceb);
+  position: relative;
+  overflow: hidden;
+}
+
+.github-dashboard .hero-card .card-body {
+  position: relative;
+  z-index: 1;
+}
+
+.github-dashboard .hero-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 85% 15%, rgba(255, 255, 255, 0.4), transparent 55%),
+    radial-gradient(circle at 10% 90%, rgba(0, 0, 0, 0.2), transparent 50%);
+  mix-blend-mode: screen;
+  opacity: 0.6;
+}
+
+.github-dashboard .stats-card {
+  background: rgba(15, 11, 48, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  backdrop-filter: blur(8px);
+  display: grid;
+  gap: 1rem;
+}
+
+.github-dashboard .metric {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.github-dashboard .metric-label {
+  font-size: 0.875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.github-dashboard .metric-value {
+  font-size: 2rem;
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.github-dashboard .metric-value.small {
+  font-size: 1rem;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.github-dashboard .stat-card {
+  border-radius: 1rem;
+  position: relative;
+}
+
+.github-dashboard .stat-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(135deg, rgba(58, 45, 214, 0.1), rgba(111, 76, 235, 0.05));
+  pointer-events: none;
+}
+
+.github-dashboard .stat-card .card-body {
+  position: relative;
+  z-index: 1;
+}
+
+.github-dashboard .stat-label {
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #6c5ce7;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.github-dashboard .stat-value {
+  font-size: 2.25rem;
+  font-weight: 700;
+  color: #111827;
+}
+
+.github-dashboard .stat-footnote {
+  font-size: 0.875rem;
+  color: #6b7280;
+  margin-bottom: 0;
+}
+
+.github-dashboard .repo-name {
+  font-weight: 600;
+  color: #3a2dd6;
+  text-decoration: none;
+}
+
+.github-dashboard .repo-name:hover {
+  text-decoration: underline;
+}
+
+.github-dashboard .repo-description {
+  font-size: 0.875rem;
+  color: #4b5563;
+}
+
+.github-dashboard .empty-state h3 {
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+
+.github-dashboard .empty-state p {
+  max-width: 26rem;
+  margin: 0 auto;
+}
+
+.github-dashboard .activity-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding-left: 0.75rem;
+  position: relative;
+}
+
+.github-dashboard .activity-timeline::before {
+  content: "";
+  position: absolute;
+  top: 0.25rem;
+  bottom: 0.25rem;
+  left: 0.35rem;
+  width: 2px;
+  background: linear-gradient(180deg, rgba(106, 90, 249, 0.5), rgba(106, 90, 249, 0));
+}
+
+.github-dashboard .timeline-item {
+  display: flex;
+  gap: 1rem;
+  position: relative;
+}
+
+.github-dashboard .timeline-indicator {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 50%;
+  background: #6a5af9;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 4px rgba(106, 90, 249, 0.15);
+  flex-shrink: 0;
+  position: relative;
+  top: 0.3rem;
+}
+
+.github-dashboard .timeline-content {
+  flex: 1;
+}
+
+.github-dashboard .activity-title {
+  font-weight: 600;
+  color: #111827;
+  text-decoration: none;
+}
+
+.github-dashboard .activity-title:hover {
+  color: #3a2dd6;
+}
+
+.github-dashboard .activity-time {
+  font-size: 0.8rem;
+}
+
+.github-dashboard .activity-summary {
+  font-size: 0.9rem;
+  color: #4b5563;
+}
+
+.github-dashboard .automation-list li {
+  padding: 1rem 0;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.github-dashboard .automation-list li:last-child {
+  border-bottom: 0;
+}
+
+.github-dashboard .automation-title {
+  font-weight: 600;
+  display: block;
+  margin-bottom: 0.25rem;
+}
+
+.github-dashboard .automation-description {
+  font-size: 0.9rem;
+  color: #6b7280;
+  margin: 0;
+}
+
+.github-dashboard .table > :not(caption) > * > * {
+  padding-block: 1rem;
+}
+
+.github-dashboard .table tbody tr:hover {
+  background-color: #f8f9ff;
+}
+
+.text-white-75 {
+  color: rgba(255, 255, 255, 0.75) !important;
+}
+
+.tracking-wide {
+  letter-spacing: 0.16em;
+}
+
+@media (max-width: 992px) {
+  .github-dashboard {
+    gap: 2.5rem;
+  }
+
+  .github-dashboard .metric-value {
+    font-size: 1.5rem;
+  }
+
+  .github-dashboard .stat-value {
+    font-size: 1.75rem;
+  }
+}
+
+@media (max-width: 576px) {
+  .github-dashboard .table-responsive {
+    border-radius: 1rem;
+  }
+
+  .github-dashboard .hero-card .card-body {
+    padding: 2.5rem 1.75rem;
+  }
+}
