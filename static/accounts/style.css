@@ -49,3 +49,91 @@ p {
   --bs-btn-hover-border-color: #1f8ef5;
   --bs-btn-focus-shadow-rgb: 65, 164, 255;
 }
+
+/* Jira dashboard */
+.jira-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.jira-issue-card {
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  border: 1px solid #eef1f6;
+}
+
+.jira-issue-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 0.35rem 1.25rem rgba(15, 23, 42, 0.12);
+}
+
+.jira-status-chip {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: #edf6ff;
+  color: #0b3d91;
+}
+
+.jira-status--in-progress {
+  background: #fff4d6;
+  color: #8a4f00;
+}
+
+.jira-status--done,
+.jira-status--resolved {
+  background: #e7f5ee;
+  color: #1f6f43;
+}
+
+.jira-status--to-do,
+.jira-status--todo {
+  background: #e9efff;
+  color: #1d4ed8;
+}
+
+.jira-status--review {
+  background: #efe4ff;
+  color: #5b21b6;
+}
+
+.jira-status--blocked,
+.jira-status--blocked-on-deployment {
+  background: #fdeaea;
+  color: #842029;
+}
+
+.jira-status--unknown {
+  background: #f4f5f7;
+  color: #48556a;
+}
+
+.jira-label {
+  background: rgba(65, 164, 255, 0.15);
+  color: #0b2239;
+  font-weight: 500;
+}
+
+.jira-issue-type {
+  font-weight: 600;
+  color: #0b2239;
+}
+
+.jira-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 0.75rem;
+}
+
+.jira-development ul li + li {
+  margin-top: 0.4rem;
+}
+
+.jira-status-filter .btn {
+  margin: 0.15rem;
+}
+
+.jira-status-filter .btn.active {
+  color: #fff;
+  background-color: var(--brand);
+  border-color: var(--brand);
+}

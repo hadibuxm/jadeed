@@ -1,11 +1,14 @@
 import time
+from collections import Counter
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, Iterable
 
 from django.contrib.auth.decorators import login_required
 from django.shortcuts import redirect, render
 from django.http import HttpResponseBadRequest, HttpResponse
 from django.conf import settings
+from django.utils.dateparse import parse_datetime
+from django.utils.text import slugify
 
 from .models import AtlassianConnection
 from .oauth import (
@@ -176,7 +179,96 @@ def issues(request):
             r = api_request(access_token, "GET", url, params=params)
     r.raise_for_status()
     data = r.json()
-    return render(request, "jira/issues_list.html", {"issues": data.get("issues", []), "cloud_name": conn.cloud_name})
+    raw_issues: Iterable[dict[str, Any]] = data.get("issues", []) or []
+
+    enriched_issues: list[dict[str, Any]] = []
+    status_counts: Counter[str] = Counter()
+    type_counts: Counter[str] = Counter()
+    latest_update = None
+
+    for raw in raw_issues:
+        if not isinstance(raw, dict):
+            continue
+
+        fields = raw.get("fields") or {}
+        status_info = fields.get("status") or {}
+        status_name = (status_info.get("name") or "Unknown").strip() or "Unknown"
+        status_slug = slugify(status_name) or "unknown"
+
+        issue_type_info = fields.get("issuetype") or {}
+        issue_type_name = (issue_type_info.get("name") or "Issue").strip() or "Issue"
+        issue_type_slug = slugify(issue_type_name) or "issue"
+
+        labels = [label for label in (fields.get("labels") or []) if label]
+        development = fields.get("development") or {}
+
+        updated_raw = fields.get("updated")
+        updated_dt = parse_datetime(updated_raw) if updated_raw else None
+        if updated_dt and (latest_update is None or updated_dt > latest_update):
+            latest_update = updated_dt
+
+        summary = fields.get("summary") or ""
+        assignee = (fields.get("assignee") or {}).get("displayName") or "Unassigned"
+        reporter = (fields.get("reporter") or {}).get("displayName") or ""
+
+        status_counts[status_name] += 1
+        type_counts[issue_type_name] += 1
+
+        enriched_issues.append(
+            {
+                "key": raw.get("key", ""),
+                "summary": summary,
+                "status": status_name,
+                "status_slug": status_slug,
+                "status_category": (status_info.get("statusCategory") or {}).get("key") or "",
+                "issue_type": issue_type_name,
+                "issue_type_slug": issue_type_slug,
+                "assignee": assignee,
+                "reporter": reporter,
+                "labels": labels,
+                "development": {
+                    "branch": development.get("branch") if isinstance(development, dict) else None,
+                    "commit": development.get("commit") if isinstance(development, dict) else None,
+                    "pull_request": development.get("pullRequest") if isinstance(development, dict) else None,
+                },
+                "updated": updated_dt,
+                "updated_raw": updated_raw,
+                "search_blob": " ".join(
+                    filter(
+                        None,
+                        [
+                            str(raw.get("key", "")),
+                            summary,
+                            " ".join(labels),
+                            assignee,
+                            reporter,
+                        ],
+                    )
+                ).lower(),
+            }
+        )
+
+    status_summary = [
+        {"name": name, "count": count, "slug": slugify(name) or "unknown"}
+        for name, count in status_counts.most_common()
+    ]
+    type_summary = [
+        {"name": name, "count": count, "slug": slugify(name) or "issue"}
+        for name, count in type_counts.most_common()
+    ]
+
+    return render(
+        request,
+        "jira/issues_list.html",
+        {
+            "issues": enriched_issues,
+            "cloud_name": conn.cloud_name,
+            "status_summary": status_summary,
+            "type_summary": type_summary,
+            "total_issues": len(enriched_issues),
+            "latest_update": latest_update,
+        },
+    )
 
 
 @login_required
