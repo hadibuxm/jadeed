@@ -8,6 +8,7 @@ urlpatterns = [
     path('connect/', views.connect, name='connect'),
     path('callback/', views.callback, name='callback'),
     path('disconnect/', views.disconnect, name='disconnect'),
-    path('fetch-repositories/', views.fetch_repositories, name='fetch_repositories')
-    
+    path('fetch-repositories/', views.fetch_repositories, name='fetch_repositories'),
+    path('request-code-change/', views.request_code_change, name='request_code_change'),
+    path('code-change-status/<int:request_id>/', views.get_code_change_status, name='get_code_change_status'),
 ]

@@ -1,5 +1,7 @@
 import requests
 import secrets
+import json
+import logging
 from datetime import datetime
 from urllib.parse import urlencode
 from django.shortcuts import render, redirect, get_object_or_404
@@ -8,8 +10,13 @@ from django.contrib import messages
 from django.conf import settings
 from django.utils import timezone
 from django.http import JsonResponse
-from .models import GitHubConnection, GitHubRepository
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_POST
+from .models import GitHubConnection, GitHubRepository, CodeChangeRequest
+from .code_change_service import CodeChangeService
 import threading
+
+logger = logging.getLogger(__name__)
 
 
 @login_required
@@ -228,4 +235,134 @@ def fetch_repositories(request):
         messages.error(request, f'Error fetching repositories: {str(e)}')
 
     return redirect('github:index')
+
+
+@login_required
+@require_POST
+def request_code_change(request):
+    """Handle AI-powered code change requests."""
+    try:
+        # Parse JSON body
+        data = json.loads(request.body)
+        repo_id = data.get('repo_id')
+        change_request = data.get('change_request')
+
+        logger.info(f"Code change request received from user: {request.user.username}")
+        logger.info(f"Repository ID: {repo_id}, Request: {change_request[:100]}...")
+
+        if not repo_id or not change_request:
+            logger.warning("Missing required fields in code change request")
+            return JsonResponse({
+                'success': False,
+                'error': 'Missing required fields'
+            }, status=400)
+
+        # Get the repository
+        try:
+            repository = GitHubRepository.objects.get(
+                id=repo_id,
+                connection__user=request.user
+            )
+            logger.info(f"Repository found: {repository.full_name}")
+        except GitHubRepository.DoesNotExist:
+            logger.error(f"Repository not found with ID: {repo_id} for user: {request.user.username}")
+            return JsonResponse({
+                'success': False,
+                'error': 'Repository not found'
+            }, status=404)
+
+        # Check if user has GitHub connection
+        try:
+            github_connection = request.user.github_connection
+            logger.info(f"GitHub connection verified for user: {github_connection.github_username}")
+        except GitHubConnection.DoesNotExist:
+            logger.error(f"No GitHub connection found for user: {request.user.username}")
+            return JsonResponse({
+                'success': False,
+                'error': 'GitHub account not connected'
+            }, status=400)
+
+        # Create code change request record
+        code_change_request = CodeChangeRequest.objects.create(
+            repository=repository,
+            user=request.user,
+            change_request=change_request,
+            status='pending'
+        )
+        logger.info(f"Created CodeChangeRequest with ID: {code_change_request.id}")
+
+        # Log the initial request
+        code_change_request.add_log(f"Request created by user: {request.user.username}")
+        code_change_request.add_log(f"Repository: {repository.full_name}")
+        code_change_request.add_log(f"Change request: {change_request}")
+
+        # Execute the code change in a background thread
+        def execute_code_change():
+            try:
+                logger.info(f"Starting background thread for request ID: {code_change_request.id}")
+                service = CodeChangeService(
+                    github_connection=github_connection,
+                    repository=repository,
+                    change_request_obj=code_change_request
+                )
+                service.execute()
+                logger.info(f"Background thread completed for request ID: {code_change_request.id}")
+            except Exception as e:
+                logger.error(f"Background thread error for request ID {code_change_request.id}: {str(e)}")
+
+        thread = threading.Thread(target=execute_code_change)
+        thread.daemon = True
+        thread.start()
+        logger.info(f"Background thread started for request ID: {code_change_request.id}")
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Code change request submitted. Processing in background...',
+            'request_id': code_change_request.id
+        })
+
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON received: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON'
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Unexpected error in request_code_change: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+def get_code_change_status(request, request_id):
+    """Get the current status and logs for a code change request."""
+    try:
+        code_change_request = CodeChangeRequest.objects.get(
+            id=request_id,
+            user=request.user
+        )
+
+        return JsonResponse({
+            'success': True,
+            'status': code_change_request.status,
+            'branch_name': code_change_request.branch_name,
+            'error_message': code_change_request.error_message,
+            'execution_log': code_change_request.execution_log or '',
+            'created_at': code_change_request.created_at.isoformat(),
+            'completed_at': code_change_request.completed_at.isoformat() if code_change_request.completed_at else None
+        })
+
+    except CodeChangeRequest.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Code change request not found'
+        }, status=404)
+    except Exception as e:
+        logger.error(f"Error fetching code change status: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
 

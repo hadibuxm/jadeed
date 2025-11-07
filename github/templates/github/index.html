@@ -132,7 +132,43 @@
                 </div>
 
                 <!-- AI Code Change Request -->
-                
+                <div class="border-top pt-3">
+                  <h6 class="text-muted small mb-2">
+                    <i class="fas fa-robot"></i> AI Code Assistant
+                  </h6>
+                  <form class="code-change-form" method="post" action="#" data-repo-id="{{ repo.id }}" data-repo-name="{{ repo.full_name }}">
+                    {% csrf_token %}
+                    <div class="form-group mb-2">
+                      <textarea
+                        class="form-control form-control-sm code-change-input"
+                        name="change_request"
+                        placeholder="Describe the feature you want to add or the bug you want to fix... (e.g., 'Add user authentication using JWT')"
+                        rows="3"
+                        required
+                      ></textarea>
+                    </div>
+                    <button type="submit" class="btn btn-primary btn-sm btn-block">
+                      <i class="fas fa-magic"></i> Generate Code Changes
+                    </button>
+                    <div class="change-status mt-2" style="display: none;">
+                      <div class="alert alert-info alert-sm mb-0">
+                        <small class="status-message"></small>
+                      </div>
+                    </div>
+                    <div class="execution-log mt-2" style="display: none;">
+                      <div class="card">
+                        <div class="card-header py-1 px-2 bg-light">
+                          <small class="font-weight-bold">Execution Log</small>
+                          <button type="button" class="close-log btn btn-sm btn-link float-right p-0" style="font-size: 0.8rem;">&times;</button>
+                        </div>
+                        <div class="card-body p-2" style="max-height: 300px; overflow-y: auto; font-family: monospace; font-size: 0.75rem; background-color: #f8f9fa;">
+                          <pre class="log-content mb-0" style="white-space: pre-wrap; word-wrap: break-word;"></pre>
+                        </div>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+
               </div>
             </div>
           </div>
@@ -183,4 +219,190 @@
       transform: translateY(-2px);
     }
   </style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  console.log('Code change form handler loaded');
+  const forms = document.querySelectorAll('.code-change-form');
+  console.log('Found', forms.length, 'code change forms');
+  const pollingIntervals = new Map(); // Track polling intervals for each request
+
+  forms.forEach(form => {
+    // Close log button handler
+    const closeLogBtn = form.querySelector('.close-log');
+    if (closeLogBtn) {
+      closeLogBtn.addEventListener('click', function() {
+        form.querySelector('.execution-log').style.display = 'none';
+      });
+    }
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      console.log('Form submitted, preventing default');
+
+      const repoId = form.dataset.repoId;
+      const repoName = form.dataset.repoName;
+      const changeRequest = form.querySelector('.code-change-input').value;
+      console.log('Repo ID:', repoId, 'Request:', changeRequest);
+      const submitBtn = form.querySelector('button[type="submit"]');
+      const statusDiv = form.querySelector('.change-status');
+      const statusMessage = form.querySelector('.status-message');
+      const logDiv = form.querySelector('.execution-log');
+      const logContent = form.querySelector('.log-content');
+
+      // Disable button and show loading
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+      statusDiv.style.display = 'block';
+      statusDiv.querySelector('.alert').className = 'alert alert-info alert-sm mb-0';
+      statusMessage.textContent = 'Initializing code change request...';
+
+      // Show log area
+      logDiv.style.display = 'block';
+      logContent.textContent = 'Waiting for execution to start...';
+
+      // Get CSRF token
+      const csrfToken = form.querySelector('[name=csrfmiddlewaretoken]').value;
+
+      // Send request
+      fetch('/github/request-code-change/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-CSRFToken': csrfToken
+        },
+        body: JSON.stringify({
+          repo_id: repoId,
+          change_request: changeRequest
+        })
+      })
+      .then(response => response.json())
+      .then(data => {
+        if (data.success) {
+          const requestId = data.request_id;
+          statusDiv.querySelector('.alert').className = 'alert alert-info alert-sm mb-0';
+          statusMessage.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${data.message}`;
+
+          // Start polling for status and logs
+          const pollInterval = setInterval(() => {
+            fetch(`/github/code-change-status/${requestId}/`)
+              .then(response => response.json())
+              .then(statusData => {
+                if (statusData.success) {
+                  // Update status message
+                  const status = statusData.status;
+                  const branchName = statusData.branch_name || 'N/A';
+
+                  // Update logs
+                  if (statusData.execution_log) {
+                    logContent.textContent = statusData.execution_log;
+                    // Auto-scroll to bottom
+                    logContent.parentElement.scrollTop = logContent.parentElement.scrollHeight;
+                  }
+
+                  // Update status based on current state
+                  if (status === 'completed') {
+                    clearInterval(pollInterval);
+                    pollingIntervals.delete(requestId);
+                    statusDiv.querySelector('.alert').className = 'alert alert-success alert-sm mb-0';
+                    statusMessage.innerHTML = `<i class="fas fa-check-circle"></i> Completed! Branch: <strong>${branchName}</strong>`;
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-magic"></i> Generate Code Changes';
+                    form.querySelector('.code-change-input').value = '';
+                  } else if (status === 'failed') {
+                    clearInterval(pollInterval);
+                    pollingIntervals.delete(requestId);
+                    statusDiv.querySelector('.alert').className = 'alert alert-danger alert-sm mb-0';
+
+                    // Extract user-friendly error message
+                    let errorMsg = 'An error occurred';
+                    if (statusData.error_message) {
+                      const fullError = statusData.error_message;
+
+                      // Extract key error messages
+                      if (fullError.includes('Codex CLI is not installed')) {
+                        errorMsg = 'Codex CLI is not installed. Please install it to use this feature.';
+                      } else if (fullError.includes('Failed to clone repository')) {
+                        errorMsg = 'Failed to clone repository. Please check your repository access.';
+                      } else if (fullError.includes('Failed to create branch')) {
+                        errorMsg = 'Failed to create branch. Please try again.';
+                      } else if (fullError.includes('Codex execution timed out')) {
+                        errorMsg = 'Request timed out. Try breaking down your request into smaller tasks.';
+                      } else if (fullError.includes('No changes were made by Codex')) {
+                        errorMsg = 'No changes were made. Try rephrasing your request or being more specific.';
+                      } else if (fullError.includes('Failed to push changes')) {
+                        errorMsg = 'Failed to push changes to GitHub. Please check your repository permissions.';
+                      } else if (fullError.includes('Codex execution failed')) {
+                        errorMsg = 'Code generation failed. Please try rephrasing your request.';
+                      } else {
+                        // Generic error - take first line or first 100 chars
+                        const firstLine = fullError.split('\n')[0];
+                        errorMsg = firstLine.substring(0, 100);
+                        if (errorMsg.startsWith('Error:')) errorMsg = errorMsg.substring(6).trim();
+                      }
+                    }
+
+                    statusMessage.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${errorMsg} <a href="#" class="view-full-log" style="font-size: 0.85em;">View details</a>`;
+
+                    // Add click handler for "View details" link
+                    setTimeout(() => {
+                      const viewLogLink = statusDiv.querySelector('.view-full-log');
+                      if (viewLogLink) {
+                        viewLogLink.addEventListener('click', function(e) {
+                          e.preventDefault();
+                          if (logDiv.style.display === 'none') {
+                            logDiv.style.display = 'block';
+                            // Scroll to log
+                            logDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                          } else {
+                            logDiv.style.display = 'none';
+                          }
+                        });
+                      }
+                    }, 100);
+
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-magic"></i> Generate Code Changes';
+                  } else {
+                    // Still in progress
+                    const statusText = {
+                      'pending': 'Pending...',
+                      'cloning': 'Cloning repository...',
+                      'processing': 'Processing with Codex...',
+                      'pushing': 'Pushing to GitHub...'
+                    }[status] || 'Processing...';
+
+                    statusMessage.innerHTML = `<i class="fas fa-spinner fa-spin"></i> ${statusText}`;
+                  }
+                }
+              })
+              .catch(error => {
+                console.error('Error polling status:', error);
+              });
+          }, 2000); // Poll every 2 seconds
+
+          // Store interval reference
+          pollingIntervals.set(requestId, pollInterval);
+
+        } else {
+          statusDiv.querySelector('.alert').className = 'alert alert-danger alert-sm mb-0';
+          statusMessage.innerHTML = `<i class="fas fa-exclamation-circle"></i> ${data.error}`;
+          logContent.textContent = 'Error: ' + data.error;
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = '<i class="fas fa-magic"></i> Generate Code Changes';
+        }
+      })
+      .catch(error => {
+        statusDiv.querySelector('.alert').className = 'alert alert-danger alert-sm mb-0';
+        statusMessage.innerHTML = `<i class="fas fa-exclamation-circle"></i> Error: ${error.message}`;
+        logContent.textContent = 'Error: ' + error.message;
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = '<i class="fas fa-magic"></i> Generate Code Changes';
+      });
+    });
+  });
+});
+</script>
 {% endblock %}
