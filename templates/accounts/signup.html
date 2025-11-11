@@ -2,10 +2,10 @@
 {% block title %}Sign up{% endblock %}
 {% block content %}
   <div class="row justify-content-center">
-    <div class="col-12 col-md-8 col-lg-6">
+    <div class="col-12 col-md-10 col-lg-8">
       <div class="card shadow-sm">
         <div class="card-header bg-brand text-brand-contrast">
-          <h1 class="h5 m-0">Create an account</h1>
+          <h1 class="h5 m-0">Create Your Account</h1>
         </div>
         <div class="card-body">
           {% if form.non_field_errors %}
@@ -13,31 +13,125 @@
               {{ form.non_field_errors }}
             </div>
           {% endif %}
+
           <form method="post" novalidate>
             {% csrf_token %}
-            <div class="mb-3">
-              <label class="form-label" for="id_username">Username</label>
-              {{ form.username }}
-              <div class="text-danger small">{{ form.username.errors }}</div>
-            </div>
-            <div class="mb-3">
-              <label class="form-label" for="id_email">Email</label>
-              {{ form.email }}
-              <div class="text-danger small">{{ form.email.errors }}</div>
-            </div>
-            <div class="mb-3">
-              <label class="form-label" for="id_password1">Password</label>
-              {{ form.password1 }}
-              <div class="text-danger small">{{ form.password1.errors }}</div>
-            </div>
+
+            <!-- Personal Information Section -->
             <div class="mb-4">
-              <label class="form-label" for="id_password2">Confirm password</label>
-              {{ form.password2 }}
-              <div class="text-danger small">{{ form.password2.errors }}</div>
+              <h6 class="fw-bold mb-3">Personal Information</h6>
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label" for="id_first_name">
+                    First Name <small class="text-muted">(optional)</small>
+                  </label>
+                  {{ form.first_name }}
+                  <div class="text-danger small">{{ form.first_name.errors }}</div>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label" for="id_last_name">
+                    Last Name <small class="text-muted">(optional)</small>
+                  </label>
+                  {{ form.last_name }}
+                  <div class="text-danger small">{{ form.last_name.errors }}</div>
+                </div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="id_email">
+                  Email <span class="text-danger">*</span>
+                </label>
+                {{ form.email }}
+                {% if form.email.help_text %}
+                  <div class="form-text">{{ form.email.help_text }}</div>
+                {% endif %}
+                <div class="text-danger small">{{ form.email.errors }}</div>
+              </div>
             </div>
-            <button class="btn btn-brand w-100" type="submit">Create account</button>
+
+            <!-- Account Credentials Section -->
+            <div class="mb-4">
+              <h6 class="fw-bold mb-3">Account Credentials</h6>
+              <div class="mb-3">
+                <label class="form-label" for="id_username">
+                  Username <span class="text-danger">*</span>
+                </label>
+                {{ form.username }}
+                <div class="text-danger small">{{ form.username.errors }}</div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="id_password1">
+                  Password <span class="text-danger">*</span>
+                </label>
+                {{ form.password1 }}
+                <div class="text-danger small">{{ form.password1.errors }}</div>
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="id_password2">
+                  Confirm Password <span class="text-danger">*</span>
+                </label>
+                {{ form.password2 }}
+                <div class="text-danger small">{{ form.password2.errors }}</div>
+              </div>
+            </div>
+
+            <!-- Organization Information Section -->
+            <div class="mb-4">
+              <h6 class="fw-bold mb-3">Organization Information</h6>
+              <div class="alert alert-info" role="alert">
+                <small>
+                  <i class="bi bi-info-circle"></i>
+                  Your organization will be created automatically. You'll be the administrator with full access.
+                </small>
+              </div>
+              <div class="mb-3">
+                <label class="form-label" for="id_organization_name">
+                  Organization Name <span class="text-danger">*</span>
+                </label>
+                {{ form.organization_name }}
+                {% if form.organization_name.help_text %}
+                  <div class="form-text">{{ form.organization_name.help_text }}</div>
+                {% endif %}
+                <div class="text-danger small">{{ form.organization_name.errors }}</div>
+              </div>
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <label class="form-label" for="id_job_title">
+                    Your Job Title <small class="text-muted">(optional)</small>
+                  </label>
+                  {{ form.job_title }}
+                  {% if form.job_title.help_text %}
+                    <div class="form-text">{{ form.job_title.help_text }}</div>
+                  {% endif %}
+                  <div class="text-danger small">{{ form.job_title.errors }}</div>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <label class="form-label" for="id_phone">
+                    Organization Phone <small class="text-muted">(optional)</small>
+                  </label>
+                  {{ form.phone }}
+                  {% if form.phone.help_text %}
+                    <div class="form-text">{{ form.phone.help_text }}</div>
+                  {% endif %}
+                  <div class="text-danger small">{{ form.phone.errors }}</div>
+                </div>
+              </div>
+            </div>
+
+            <button class="btn btn-brand w-100 mb-3" type="submit">
+              Create Account & Organization
+            </button>
+
+            <div class="text-center">
+              <small class="text-muted">
+                By creating an account, you agree to our Terms of Service and Privacy Policy.
+              </small>
+            </div>
           </form>
-          <p class="mt-3 mb-0 text-muted">Already have an account? <a href="{% url 'accounts:login' %}">Sign in</a></p>
+
+          <hr class="my-4">
+          <p class="text-center mb-0 text-muted">
+            Already have an account? <a href="{% url 'accounts:login' %}">Sign in</a>
+          </p>
         </div>
       </div>
     </div>

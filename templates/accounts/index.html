@@ -1,6 +1,216 @@
 {% extends "accounts/base.html" %}
-{% block title %}Accounts home{% endblock %}
+{% block title %}Dashboard{% endblock %}
 {% block content %}
-  <h1>Accounts home</h1>
-  <p>Welcome to the accounts app.</p>
+  <div class="row">
+    <div class="col-12">
+      <h1 class="mb-4">Dashboard</h1>
+
+      {% if user.is_authenticated %}
+        {% if user_organization_member %}
+          <!-- Organization Information Card -->
+          <div class="card shadow-sm mb-4">
+            <div class="card-header bg-brand text-brand-contrast">
+              <h5 class="mb-0">
+                <i class="bi bi-building"></i>
+                Organization Information
+              </h5>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-md-6 mb-3">
+                  <h6 class="text-muted mb-2">Organization</h6>
+                  <p class="h5 mb-0">{{ user_organization.name }}</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <h6 class="text-muted mb-2">Your Role</h6>
+                  <p class="mb-0">
+                    <span class="badge bg-primary fs-6">
+                      {{ user_role.get_role_type_display }}
+                    </span>
+                  </p>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <h6 class="text-muted mb-2">Department</h6>
+                  <p class="mb-0">{{ user_department.name|default:"Not assigned" }}</p>
+                </div>
+                <div class="col-md-6 mb-3">
+                  <h6 class="text-muted mb-2">Job Title</h6>
+                  <p class="mb-0">{{ user_organization_member.job_title|default:"Not specified" }}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick Actions -->
+          <div class="row mb-4">
+            <div class="col-12">
+              <h5 class="mb-3">Quick Actions</h5>
+            </div>
+
+            {% if user_role.can_approve_expenses %}
+            <div class="col-md-4 mb-3">
+              <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                  <i class="bi bi-receipt text-primary" style="font-size: 2rem;"></i>
+                  <h6 class="mt-3">Manage Expenses</h6>
+                  <p class="text-muted small">Review and approve expense requests</p>
+                  <a href="/admin/accounting/expense/?status__exact=PENDING" class="btn btn-sm btn-outline-primary">
+                    View Expenses
+                  </a>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+
+            {% if user_role.can_manage_financial %}
+            <div class="col-md-4 mb-3">
+              <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                  <i class="bi bi-file-earmark-text text-success" style="font-size: 2rem;"></i>
+                  <h6 class="mt-3">Manage Invoices</h6>
+                  <p class="text-muted small">Create and manage invoices</p>
+                  <a href="/admin/accounting/invoice/" class="btn btn-sm btn-outline-success">
+                    View Invoices
+                  </a>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+
+            {% if user_role.can_view_reports %}
+            <div class="col-md-4 mb-3">
+              <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                  <i class="bi bi-bar-chart text-info" style="font-size: 2rem;"></i>
+                  <h6 class="mt-3">View Reports</h6>
+                  <p class="text-muted small">Financial reports and analytics</p>
+                  <a href="/admin/accounting/budget/" class="btn btn-sm btn-outline-info">
+                    View Budgets
+                  </a>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+
+            {% if user_role.can_manage_users %}
+            <div class="col-md-4 mb-3">
+              <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                  <i class="bi bi-people text-warning" style="font-size: 2rem;"></i>
+                  <h6 class="mt-3">Manage Team</h6>
+                  <p class="text-muted small">Manage organization members</p>
+                  <a href="/admin/organizations/organizationmember/" class="btn btn-sm btn-outline-warning">
+                    View Members
+                  </a>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+
+            {% if user_role.can_manage_departments %}
+            <div class="col-md-4 mb-3">
+              <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                  <i class="bi bi-diagram-3 text-danger" style="font-size: 2rem;"></i>
+                  <h6 class="mt-3">Manage Structure</h6>
+                  <p class="text-muted small">Departments and teams</p>
+                  <a href="/admin/organizations/department/" class="btn btn-sm btn-outline-danger">
+                    View Structure
+                  </a>
+                </div>
+              </div>
+            </div>
+            {% endif %}
+
+            <div class="col-md-4 mb-3">
+              <div class="card h-100 shadow-sm">
+                <div class="card-body text-center">
+                  <i class="bi bi-gear text-secondary" style="font-size: 2rem;"></i>
+                  <h6 class="mt-3">Admin Panel</h6>
+                  <p class="text-muted small">Access full admin interface</p>
+                  <a href="/admin/" class="btn btn-sm btn-outline-secondary">
+                    Go to Admin
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Your Permissions -->
+          <div class="card shadow-sm mb-4">
+            <div class="card-header">
+              <h6 class="mb-0">Your Permissions</h6>
+            </div>
+            <div class="card-body">
+              <div class="row">
+                <div class="col-md-6">
+                  <ul class="list-unstyled">
+                    <li class="mb-2">
+                      <i class="bi bi-{{ user_role.can_manage_users|yesno:'check-circle-fill text-success,x-circle text-muted' }}"></i>
+                      Manage Users
+                    </li>
+                    <li class="mb-2">
+                      <i class="bi bi-{{ user_role.can_manage_roles|yesno:'check-circle-fill text-success,x-circle text-muted' }}"></i>
+                      Manage Roles
+                    </li>
+                    <li class="mb-2">
+                      <i class="bi bi-{{ user_role.can_view_all_financial|yesno:'check-circle-fill text-success,x-circle text-muted' }}"></i>
+                      View All Financial Data
+                    </li>
+                    <li class="mb-2">
+                      <i class="bi bi-{{ user_role.can_manage_financial|yesno:'check-circle-fill text-success,x-circle text-muted' }}"></i>
+                      Manage Financial Records
+                    </li>
+                    <li class="mb-2">
+                      <i class="bi bi-{{ user_role.can_approve_expenses|yesno:'check-circle-fill text-success,x-circle text-muted' }}"></i>
+                      Approve Expenses
+                    </li>
+                  </ul>
+                </div>
+                <div class="col-md-6">
+                  <ul class="list-unstyled">
+                    <li class="mb-2">
+                      <i class="bi bi-{{ user_role.can_manage_departments|yesno:'check-circle-fill text-success,x-circle text-muted' }}"></i>
+                      Manage Departments
+                    </li>
+                    <li class="mb-2">
+                      <i class="bi bi-{{ user_role.can_manage_teams|yesno:'check-circle-fill text-success,x-circle text-muted' }}"></i>
+                      Manage Teams
+                    </li>
+                    <li class="mb-2">
+                      <i class="bi bi-{{ user_role.can_view_reports|yesno:'check-circle-fill text-success,x-circle text-muted' }}"></i>
+                      View Reports
+                    </li>
+                    <li class="mb-2">
+                      <i class="bi bi-{{ user_role.can_export_data|yesno:'check-circle-fill text-success,x-circle text-muted' }}"></i>
+                      Export Data
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        {% else %}
+          <!-- No Organization -->
+          <div class="alert alert-warning" role="alert">
+            <h5 class="alert-heading">Organization Setup Required</h5>
+            <p>Your account is not currently associated with any organization. Please contact an administrator to be added to an organization.</p>
+          </div>
+        {% endif %}
+
+      {% else %}
+        <!-- Not authenticated -->
+        <div class="card shadow-sm">
+          <div class="card-body text-center py-5">
+            <i class="bi bi-person-circle text-muted" style="font-size: 4rem;"></i>
+            <h3 class="mt-4">Welcome to Jadeed</h3>
+            <p class="text-muted mb-4">Sign in to access your organization dashboard</p>
+            <a href="{% url 'accounts:login' %}" class="btn btn-brand me-2">Sign In</a>
+            <a href="{% url 'accounts:signup' %}" class="btn btn-outline-secondary">Create Account</a>
+          </div>
+        </div>
+      {% endif %}
+    </div>
+  </div>
 {% endblock %}

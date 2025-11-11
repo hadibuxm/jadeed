@@ -98,6 +98,25 @@ class IssuesViewTests(TestCase):
             cloud_name="Conf",
         )
 
+    @staticmethod
+    def _sample_issue(key="ISSUE-1", summary="Sample summary", status="To Do", issue_type="Task"):
+        return {
+            "key": key,
+            "fields": {
+                "summary": summary,
+                "status": {
+                    "name": status,
+                    "statusCategory": {"key": "new"},
+                },
+                "issuetype": {"name": issue_type},
+                "assignee": {"displayName": "Owner"},
+                "reporter": {"displayName": "Reporter"},
+                "labels": ["triaged"],
+                "development": {},
+                "updated": "2024-01-01T00:00:00.000+0000",
+            },
+        }
+
     @patch("apps.jira.views.api_request")
     @patch("apps.jira.views.get_accessible_resources")
     @patch("apps.jira.views._ensure_access_token")
@@ -127,14 +146,17 @@ class IssuesViewTests(TestCase):
         ]
         mock_api.side_effect = [
             make_response(410),
-            make_response(200, {"issues": ["ISSUE-1"]}),
+            make_response(200, {"issues": [self._sample_issue()]}),
         ]
 
         self.client.login(username="u", password="p")
         resp = self.client.get(reverse("jira:issues"))
 
         self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.context["issues"], ["ISSUE-1"])
+        self.assertEqual(resp.context["total_issues"], 1)
+        self.assertEqual(resp.context["issues"][0]["key"], "ISSUE-1")
+        self.assertEqual(resp.context["issues"][0]["status"], "To Do")
+        self.assertEqual(resp.context["status_summary"][0]["name"], "To Do")
         self.assertEqual(resp.context["cloud_name"], "Jira Cloud")
         self.connection.refresh_from_db()
         self.assertEqual(self.connection.cloud_id, "jira-456")
