@@ -50,6 +50,9 @@ INSTALLED_APPS = [
     "apps.accounts",
     "apps.jira",
     'aiengine',
+    # Accounting and organization management
+    'organizations',
+    'accounting',
 ]
 
 MIDDLEWARE = [
@@ -75,6 +78,8 @@ TEMPLATES = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                # Organization context
+                "organizations.context_processors.organization_context",
             ],
         },
     },
