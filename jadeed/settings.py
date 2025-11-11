@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'organizations',
     'accounting',
     'github',
+    'product_management',
 ]
 
 MIDDLEWARE = [
