@@ -1,0 +1,353 @@
+{% extends 'product_management/base.html' %}
+
+{% block title %}{{ project.name }} - Product Management{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'product_management:index' %}">Projects</a></li>
+                <li class="breadcrumb-item active">{{ project.name }}</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card card-gradient mb-4">
+            <div class="card-body">
+                <h2 class="mb-2">{{ project.name }}</h2>
+                <p class="mb-3 opacity-75">{{ project.description }}</p>
+                {% if project.github_repository %}
+                <a href="{{ project.github_repository.html_url }}" target="_blank" class="btn btn-light btn-sm">
+                    <i class="fab fa-github me-1"></i>{{ project.github_repository.full_name }}
+                </a>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h3 class="section-title">
+            <i class="fas fa-route me-2"></i>Discovery Workflow
+        </h3>
+        <p class="text-muted mb-4">Follow the structured workflow: Vision → Initiative → Portfolio → Product → Feature</p>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Vision -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-white border-0 pt-3">
+                <h5 class="mb-0">
+                    <span class="workflow-badge badge-vision">
+                        <i class="fas fa-eye me-1"></i>Vision
+                    </span>
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if steps_by_type.vision %}
+                    {% for step in steps_by_type.vision %}
+                    <div class="mb-3 p-3 bg-light rounded">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1">{{ step.title }}</h6>
+                                <small class="text-muted">{{ step.description|truncatewords:10 }}</small>
+                            </div>
+                            {% if step.is_completed %}
+                            <span class="badge bg-success"><i class="fas fa-check"></i></span>
+                            {% endif %}
+                        </div>
+                        <div class="mt-2">
+                            <a href="{% url 'product_management:workflow_chat' step.id %}" class="btn btn-sm btn-creative-outline">
+                                Open <i class="fas fa-arrow-right ms-1"></i>
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted small">No vision defined yet</p>
+                {% endif %}
+                <button class="btn btn-creative-outline btn-sm w-100" onclick="createStep('vision', null)">
+                    <i class="fas fa-plus me-1"></i>Add Vision
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Initiative -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-white border-0 pt-3">
+                <h5 class="mb-0">
+                    <span class="workflow-badge badge-initiative">
+                        <i class="fas fa-flag me-1"></i>Initiative
+                    </span>
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if steps_by_type.initiative %}
+                    {% for step in steps_by_type.initiative %}
+                    <div class="mb-3 p-3 bg-light rounded">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1">{{ step.title }}</h6>
+                                <small class="text-muted">{{ step.description|truncatewords:10 }}</small>
+                            </div>
+                            {% if step.is_completed %}
+                            <span class="badge bg-success"><i class="fas fa-check"></i></span>
+                            {% endif %}
+                        </div>
+                        <div class="mt-2">
+                            <a href="{% url 'product_management:workflow_chat' step.id %}" class="btn btn-sm btn-creative-outline">
+                                Open <i class="fas fa-arrow-right ms-1"></i>
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted small">No initiatives defined yet</p>
+                {% endif %}
+                <button class="btn btn-creative-outline btn-sm w-100" onclick="createStep('initiative', null)">
+                    <i class="fas fa-plus me-1"></i>Add Initiative
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Portfolio -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-white border-0 pt-3">
+                <h5 class="mb-0">
+                    <span class="workflow-badge badge-portfolio">
+                        <i class="fas fa-folder me-1"></i>Portfolio
+                    </span>
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if steps_by_type.portfolio %}
+                    {% for step in steps_by_type.portfolio %}
+                    <div class="mb-3 p-3 bg-light rounded">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1">{{ step.title }}</h6>
+                                <small class="text-muted">{{ step.description|truncatewords:10 }}</small>
+                            </div>
+                            {% if step.is_completed %}
+                            <span class="badge bg-success"><i class="fas fa-check"></i></span>
+                            {% endif %}
+                        </div>
+                        <div class="mt-2">
+                            <a href="{% url 'product_management:workflow_chat' step.id %}" class="btn btn-sm btn-creative-outline">
+                                Open <i class="fas fa-arrow-right ms-1"></i>
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted small">No portfolios defined yet</p>
+                {% endif %}
+                <button class="btn btn-creative-outline btn-sm w-100" onclick="createStep('portfolio', null)">
+                    <i class="fas fa-plus me-1"></i>Add Portfolio
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Product -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-white border-0 pt-3">
+                <h5 class="mb-0">
+                    <span class="workflow-badge badge-product">
+                        <i class="fas fa-box me-1"></i>Product
+                    </span>
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if steps_by_type.product %}
+                    {% for step in steps_by_type.product %}
+                    <div class="mb-3 p-3 bg-light rounded">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1">{{ step.title }}</h6>
+                                <small class="text-muted">{{ step.description|truncatewords:10 }}</small>
+                            </div>
+                            {% if step.is_completed %}
+                            <span class="badge bg-success"><i class="fas fa-check"></i></span>
+                            {% endif %}
+                        </div>
+                        <div class="mt-2 d-flex gap-2">
+                            <a href="{% url 'product_management:workflow_chat' step.id %}" class="btn btn-sm btn-creative-outline">
+                                Open <i class="fas fa-arrow-right ms-1"></i>
+                            </a>
+                            <a href="{% url 'product_management:product_steps' step.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-tasks me-1"></i>Steps
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted small">No products defined yet</p>
+                {% endif %}
+                <button class="btn btn-creative-outline btn-sm w-100" onclick="createStep('product', null)">
+                    <i class="fas fa-plus me-1"></i>Add Product
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Feature -->
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-white border-0 pt-3">
+                <h5 class="mb-0">
+                    <span class="workflow-badge badge-feature">
+                        <i class="fas fa-puzzle-piece me-1"></i>Feature
+                    </span>
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if steps_by_type.feature %}
+                    {% for step in steps_by_type.feature %}
+                    <div class="mb-3 p-3 bg-light rounded">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <h6 class="mb-1">{{ step.title }}</h6>
+                                <small class="text-muted">{{ step.description|truncatewords:10 }}</small>
+                            </div>
+                            {% if step.is_completed %}
+                            <span class="badge bg-success"><i class="fas fa-check"></i></span>
+                            {% endif %}
+                        </div>
+                        <div class="mt-2">
+                            <a href="{% url 'product_management:workflow_chat' step.id %}" class="btn btn-sm btn-creative-outline">
+                                Open <i class="fas fa-arrow-right ms-1"></i>
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <p class="text-muted small">No features defined yet</p>
+                {% endif %}
+                <button class="btn btn-creative-outline btn-sm w-100" onclick="createStep('feature', null)">
+                    <i class="fas fa-plus me-1"></i>Add Feature
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Step Modal -->
+<div class="modal fade" id="createStepModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createStepModalTitle">Create Step</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createStepForm">
+                    <input type="hidden" id="stepType">
+                    <input type="hidden" id="parentStepId">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Title *</label>
+                        <input type="text" class="form-control" id="stepTitle" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Description</label>
+                        <textarea class="form-control" id="stepDescription" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-creative" id="createStepBtn">
+                    <i class="fas fa-plus me-1"></i>Create Step
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const projectId = {{ project.id }};
+const createStepModal = new bootstrap.Modal(document.getElementById('createStepModal'));
+
+function createStep(stepType, parentStepId) {
+    document.getElementById('stepType').value = stepType;
+    document.getElementById('parentStepId').value = parentStepId || '';
+    document.getElementById('createStepModalTitle').textContent = `Create ${stepType.charAt(0).toUpperCase() + stepType.slice(1)}`;
+    document.getElementById('createStepForm').reset();
+    document.getElementById('stepType').value = stepType;
+    createStepModal.show();
+}
+
+document.getElementById('createStepBtn').addEventListener('click', function() {
+    const stepType = document.getElementById('stepType').value;
+    const title = document.getElementById('stepTitle').value.trim();
+    const description = document.getElementById('stepDescription').value.trim();
+    const parentStepId = document.getElementById('parentStepId').value;
+
+    if (!title) {
+        alert('Please enter a title');
+        return;
+    }
+
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating...';
+
+    fetch(`/product-management/project/${projectId}/step/create/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({
+            step_type: stepType,
+            title: title,
+            description: description,
+            parent_step_id: parentStepId || null
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = `/product-management/workflow/${data.step_id}/`;
+        } else {
+            alert('Error: ' + data.error);
+            this.disabled = false;
+            this.innerHTML = '<i class="fas fa-plus me-1"></i>Create Step';
+        }
+    })
+    .catch(error => {
+        alert('Error creating step: ' + error);
+        this.disabled = false;
+        this.innerHTML = '<i class="fas fa-plus me-1"></i>Create Step';
+    });
+});
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}

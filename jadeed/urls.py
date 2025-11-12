@@ -26,4 +26,5 @@ urlpatterns = [
     path("jira/", include(("apps.jira.urls", "jira"), namespace="jira")),
     path('aiengine/', include('aiengine.urls')),
     path('github/', include(('github.urls', 'github'), namespace='github')),
+    path('product-management/', include(('product_management.urls', 'product_management'), namespace='product_management')),
 ]
