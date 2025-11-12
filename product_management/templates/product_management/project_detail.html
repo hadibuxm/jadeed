@@ -183,9 +183,12 @@
                             <span class="badge bg-success"><i class="fas fa-check"></i></span>
                             {% endif %}
                         </div>
-                        <div class="mt-2">
+                        <div class="mt-2 d-flex gap-2">
                             <a href="{% url 'product_management:workflow_chat' step.id %}" class="btn btn-sm btn-creative-outline">
                                 Open <i class="fas fa-arrow-right ms-1"></i>
+                            </a>
+                            <a href="{% url 'product_management:product_steps' step.id %}" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-tasks me-1"></i>Steps
                             </a>
                         </div>
                     </div>

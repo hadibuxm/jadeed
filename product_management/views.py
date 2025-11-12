@@ -5,11 +5,12 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
+from django.db import models
 from django.db.models import Q
 from github.models import GitHubConnection, GitHubRepository
 from .models import (
     Project, WorkflowStep, Vision, Initiative,
-    Portfolio, Product, Feature
+    Portfolio, Product, Feature, ProductStep
 )
 from .ai_service import ProductDiscoveryAI
 import requests
@@ -477,3 +478,265 @@ def get_repositories(request):
             'error': 'GitHub not connected.',
             'repositories': []
         })
+
+
+@login_required
+def product_steps(request, step_id):
+    """View product steps for a product."""
+    workflow_step = get_object_or_404(
+        WorkflowStep,
+        id=step_id,
+        step_type='product',
+        project__user=request.user
+    )
+
+    try:
+        product = workflow_step.product_details
+    except Product.DoesNotExist:
+        messages.error(request, 'Product details not found.')
+        return redirect('product_management:project_detail', project_id=workflow_step.project.id)
+
+    # Get all product steps for this product, ordered by layer and order
+    product_steps = ProductStep.objects.filter(product=product).order_by('order', 'created_at')
+
+    # Organize by layer
+    steps_by_layer = {
+        'strategic': product_steps.filter(layer='strategic'),
+        'tactical': product_steps.filter(layer='tactical'),
+        'release': product_steps.filter(layer='release'),
+    }
+
+    context = {
+        'workflow_step': workflow_step,
+        'product': product,
+        'project': workflow_step.project,
+        'product_steps': product_steps,
+        'steps_by_layer': steps_by_layer,
+    }
+    return render(request, 'product_management/product_steps.html', context)
+
+
+@login_required
+@require_POST
+def create_product_step(request, step_id):
+    """Create a new product step."""
+    workflow_step = get_object_or_404(
+        WorkflowStep,
+        id=step_id,
+        step_type='product',
+        project__user=request.user
+    )
+
+    try:
+        product = workflow_step.product_details
+    except Product.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Product not found.'
+        }, status=404)
+
+    try:
+        data = json.loads(request.body)
+        step_type = data.get('step_type')
+        title = data.get('title', '').strip()
+        description = data.get('description', '').strip()
+        layer = data.get('layer')
+
+        if not step_type or not title or not layer:
+            return JsonResponse({
+                'success': False,
+                'error': 'Step type, title, and layer are required.'
+            }, status=400)
+
+        # Get the next order number
+        max_order = ProductStep.objects.filter(product=product).aggregate(
+            max_order=models.Max('order')
+        )['max_order'] or 0
+
+        # Create product step
+        product_step = ProductStep.objects.create(
+            product=product,
+            step_type=step_type,
+            layer=layer,
+            title=title,
+            description=description,
+            order=max_order + 1
+        )
+
+        return JsonResponse({
+            'success': True,
+            'step_id': product_step.id,
+            'message': f'{product_step.get_step_type_display()} created successfully!'
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON.'
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Error creating product step: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+def product_step_chat(request, product_step_id):
+    """Chat interface for AI-assisted product step."""
+    product_step = get_object_or_404(
+        ProductStep,
+        id=product_step_id,
+        product__workflow_step__project__user=request.user
+    )
+
+    # Serialize conversation history to JSON for JavaScript
+    conversation_json = json.dumps(product_step.conversation_history or [])
+
+    context = {
+        'product_step': product_step,
+        'product': product_step.product,
+        'workflow_step': product_step.product.workflow_step,
+        'project': product_step.product.workflow_step.project,
+        'conversation_json': conversation_json,
+    }
+    return render(request, 'product_management/product_step_chat.html', context)
+
+
+@login_required
+@require_POST
+def send_product_step_message(request, product_step_id):
+    """Send a message to the AI assistant for a product step with streaming support."""
+    product_step = get_object_or_404(
+        ProductStep,
+        id=product_step_id,
+        product__workflow_step__project__user=request.user
+    )
+
+    try:
+        data = json.loads(request.body)
+        message = data.get('message', '').strip()
+        use_streaming = data.get('stream', True)
+
+        if not message:
+            return JsonResponse({
+                'success': False,
+                'error': 'Message cannot be empty.'
+            }, status=400)
+
+        # Use AI service to process message
+        ai_service = ProductDiscoveryAI(product_step)
+
+        if use_streaming:
+            # Return streaming response
+            from django.http import StreamingHttpResponse
+            response = StreamingHttpResponse(
+                ai_service.send_message_stream(message),
+                content_type='text/event-stream'
+            )
+            response['Cache-Control'] = 'no-cache'
+            response['X-Accel-Buffering'] = 'no'
+            return response
+        else:
+            # Return regular JSON response
+            result = ai_service.send_message(message)
+            return JsonResponse(result)
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON.'
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Error sending message: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+def get_product_step_conversation(request, product_step_id):
+    """Get the conversation history for a product step."""
+    product_step = get_object_or_404(
+        ProductStep,
+        id=product_step_id,
+        product__workflow_step__project__user=request.user
+    )
+
+    return JsonResponse({
+        'success': True,
+        'conversation': product_step.conversation_history,
+        'document_content': product_step.document_content,
+        'is_completed': product_step.is_completed,
+    })
+
+
+@login_required
+@require_POST
+def generate_product_step_document(request, product_step_id):
+    """Generate document from conversation history for a product step."""
+    product_step = get_object_or_404(
+        ProductStep,
+        id=product_step_id,
+        product__workflow_step__project__user=request.user
+    )
+
+    try:
+        ai_service = ProductDiscoveryAI(product_step)
+        result = ai_service.generate_readme()
+
+        if result['success']:
+            # If project has GitHub repo, optionally save it
+            save_to_github = (
+                request.POST.get('save_to_github', 'false') == 'true' or
+                request.GET.get('save_to_github', 'false') == 'true'
+            )
+
+            if save_to_github and product_step.product.workflow_step.project.github_repository:
+                try:
+                    github_connection = request.user.github_connection
+                    github_result = ai_service.save_readme_to_github(
+                        github_connection,
+                        product_step.product.workflow_step.project.github_repository
+                    )
+                    if github_result['success']:
+                        result['github_url'] = github_result['url']
+                        result['github_file_path'] = github_result['file_path']
+                        result['message'] = 'Document generated and saved to GitHub!'
+                    else:
+                        result['github_error'] = github_result.get('error', 'Unknown error')
+                        result['message'] = 'Document generated but failed to save to GitHub'
+                except Exception as e:
+                    logger.error(f"Error saving to GitHub: {str(e)}")
+                    result['github_error'] = str(e)
+                    result['message'] = 'Document generated but failed to save to GitHub'
+
+        return JsonResponse(result)
+
+    except Exception as e:
+        logger.error(f"Error generating document: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@require_POST
+def complete_product_step(request, product_step_id):
+    """Mark a product step as completed."""
+    product_step = get_object_or_404(
+        ProductStep,
+        id=product_step_id,
+        product__workflow_step__project__user=request.user
+    )
+
+    product_step.is_completed = True
+    product_step.save()
+
+    return JsonResponse({
+        'success': True,
+        'message': 'Step marked as completed!'
+    })

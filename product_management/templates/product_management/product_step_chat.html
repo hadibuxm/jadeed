@@ -1,0 +1,437 @@
+{% extends 'product_management/base.html' %}
+
+{% block title %}{{ product_step.title }} - {{ product_step.get_step_type_display }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .typing-indicator {
+        color: #6c757d;
+        font-style: italic;
+    }
+
+    .typing-indicator::after {
+        content: '...';
+        animation: dots 1.5s steps(4, end) infinite;
+    }
+
+    @keyframes dots {
+        0%, 20% { content: '.'; }
+        40% { content: '..'; }
+        60%, 100% { content: '...'; }
+    }
+
+    /* Smooth scrolling */
+    #chatContainer {
+        scroll-behavior: smooth;
+    }
+
+    /* Message styling */
+    .chat-message {
+        animation: fadeIn 0.3s ease-in;
+    }
+
+    @keyframes fadeIn {
+        from {
+            opacity: 0;
+            transform: translateY(10px);
+        }
+        to {
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    /* Creative gradient text */
+    .text-creative {
+        background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 50%, #F59E0B 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'product_management:index' %}">Projects</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'product_management:project_detail' project.id %}">{{ project.name }}</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'product_management:product_steps' workflow_step.id %}">{{ product.workflow_step.title }}</a></li>
+                <li class="breadcrumb-item active">{{ product_step.title }}</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row">
+    <!-- Left Column: Step Information & Document -->
+    <div class="col-lg-3">
+        <div class="card mb-3">
+            <div class="card-header bg-white">
+                <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>Step Information</h6>
+            </div>
+            <div class="card-body">
+                <div class="mb-2">
+                    <span class="workflow-badge badge-product">
+                        <i class="fas fa-tasks me-1"></i>
+                        {{ product_step.get_step_type_display }}
+                    </span>
+                    {% if product_step.is_completed %}
+                    <span class="badge bg-success ms-2"><i class="fas fa-check me-1"></i>Completed</span>
+                    {% endif %}
+                </div>
+                <div class="mb-2">
+                    <span class="badge {% if product_step.layer == 'strategic' %}bg-info{% elif product_step.layer == 'tactical' %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                        {{ product_step.get_layer_display }}
+                    </span>
+                </div>
+                <h6 class="mb-3">{{ product_step.title }}</h6>
+                <p class="small text-muted">{{ product_step.description }}</p>
+                <hr>
+                <div class="small">
+                    <div class="mb-2">
+                        <strong>Created:</strong><br>
+                        {{ product_step.created_at|date:"M d, Y H:i" }}
+                    </div>
+                    <div>
+                        <strong>Last Updated:</strong><br>
+                        {{ product_step.updated_at|date:"M d, Y H:i" }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card mb-3" id="documentCard" style="display: none;">
+            <div class="card-header bg-white">
+                <h6 class="mb-0"><i class="fas fa-file-alt me-2"></i>Document</h6>
+            </div>
+            <div class="card-body">
+                <div id="documentPreview" class="small" style="max-height: 300px; overflow-y: auto;"></div>
+                {% if project.github_repository %}
+                <button class="btn btn-sm btn-creative-outline w-100 mt-3" id="saveToGithubBtn">
+                    <i class="fab fa-github me-1"></i>Save to GitHub
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Middle Column: Chat Interface -->
+    <div class="col-lg-6">
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <h6 class="mb-0"><i class="fas fa-comments me-2"></i>AI Conversation</h6>
+            </div>
+            <div class="card-body" style="height: 500px; overflow-y: auto;" id="chatContainer">
+                <div id="chatMessages">
+                    <div class="alert alert-info">
+                        <i class="fas fa-robot me-2"></i>
+                        <strong>AI Assistant Ready!</strong>
+                        <p class="mb-0 mt-2">I'll help you with {{ product_step.get_step_type_display|lower }}. Share your thoughts, and I'll guide you through the process with questions and suggestions.</p>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-white">
+                <form id="chatForm" class="d-flex gap-2">
+                    <input type="text" class="form-control" id="messageInput" placeholder="Type your message..." autocomplete="off">
+                    <button type="submit" class="btn btn-creative" id="sendBtn">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Column: Actions -->
+    <div class="col-lg-3">
+        <div class="card">
+            <div class="card-header bg-white">
+                <h6 class="mb-0"><i class="fas fa-tools me-2"></i>Actions</h6>
+            </div>
+            <div class="card-body">
+                <button class="btn btn-creative-outline w-100 mb-2" id="generateDocumentBtn">
+                    <i class="fas fa-file-alt me-1"></i>Generate Document
+                </button>
+
+                {% if not product_step.is_completed %}
+                <button class="btn btn-success w-100" id="completeStepBtn">
+                    <i class="fas fa-check me-1"></i>Mark as Completed
+                </button>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const productStepId = {{ product_step.id }};
+const chatMessages = document.getElementById('chatMessages');
+const chatContainer = document.getElementById('chatContainer');
+const messageInput = document.getElementById('messageInput');
+const chatForm = document.getElementById('chatForm');
+const sendBtn = document.getElementById('sendBtn');
+
+// Load conversation history
+loadConversation();
+
+// Send message with streaming
+chatForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const message = messageInput.value.trim();
+    if (!message) return;
+
+    // Add user message to chat
+    addMessageToChat('user', message);
+    messageInput.value = '';
+    sendBtn.disabled = true;
+    sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+
+    // Create placeholder for assistant message
+    const assistantMessageDiv = document.createElement('div');
+    assistantMessageDiv.className = 'mb-3';
+    const bubble = document.createElement('div');
+    bubble.className = 'd-inline-block p-3 rounded bg-light';
+    bubble.style.maxWidth = '80%';
+    bubble.style.textAlign = 'left';
+    bubble.innerHTML = '<span class="typing-indicator">AI is thinking...</span>';
+    assistantMessageDiv.appendChild(bubble);
+    chatMessages.appendChild(assistantMessageDiv);
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+
+    let fullMessage = '';
+    let isFirstChunk = true;
+
+    // Send to server with streaming
+    fetch(`/product-management/product-step/${productStepId}/message/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({ message: message, stream: true })
+    })
+    .then(response => {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+
+        function readStream() {
+            reader.read().then(({done, value}) => {
+                if (done) {
+                    sendBtn.disabled = false;
+                    sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i>';
+                    return;
+                }
+
+                const chunk = decoder.decode(value, {stream: true});
+                const lines = chunk.split('\n');
+
+                lines.forEach(line => {
+                    if (line.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(line.substring(6));
+
+                            if (data.error) {
+                                bubble.innerHTML = `<span class="text-danger">Error: ${data.error}</span>`;
+                                sendBtn.disabled = false;
+                                sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i>';
+                                return;
+                            }
+
+                            if (data.content) {
+                                if (isFirstChunk) {
+                                    bubble.innerHTML = '';
+                                    isFirstChunk = false;
+                                }
+                                fullMessage += data.content;
+                                bubble.innerHTML = marked.parse(fullMessage);
+                                chatContainer.scrollTop = chatContainer.scrollHeight;
+                            }
+
+                            if (data.done) {
+                                sendBtn.disabled = false;
+                                sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i>';
+                            }
+                        } catch (e) {
+                            // Ignore parsing errors for incomplete chunks
+                        }
+                    }
+                });
+
+                readStream();
+            });
+        }
+
+        readStream();
+    })
+    .catch(error => {
+        bubble.innerHTML = `<span class="text-danger">Error: ${error}</span>`;
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i>';
+    });
+});
+
+// Generate Document
+document.getElementById('generateDocumentBtn').addEventListener('click', function() {
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating...';
+
+    fetch(`/product-management/product-step/${productStepId}/document/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            document.getElementById('documentPreview').innerHTML = marked.parse(data.readme_content);
+            document.getElementById('documentCard').style.display = 'block';
+            alert('Document generated successfully!');
+        } else {
+            alert('Error: ' + data.error);
+        }
+        this.disabled = false;
+        this.innerHTML = '<i class="fas fa-file-alt me-1"></i>Generate Document';
+    })
+    .catch(error => {
+        alert('Error generating document: ' + error);
+        this.disabled = false;
+        this.innerHTML = '<i class="fas fa-file-alt me-1"></i>Generate Document';
+    });
+});
+
+// Complete step
+{% if not product_step.is_completed %}
+document.getElementById('completeStepBtn').addEventListener('click', function() {
+    if (!confirm('Mark this step as completed?')) return;
+
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Completing...';
+
+    fetch(`/product-management/product-step/${productStepId}/complete/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('Step marked as completed!');
+            window.location.reload();
+        } else {
+            alert('Error: ' + data.error);
+            this.disabled = false;
+            this.innerHTML = '<i class="fas fa-check me-1"></i>Mark as Completed';
+        }
+    })
+    .catch(error => {
+        alert('Error completing step: ' + error);
+        this.disabled = false;
+        this.innerHTML = '<i class="fas fa-check me-1"></i>Mark as Completed';
+    });
+});
+{% endif %}
+
+// Save to GitHub
+{% if project.github_repository %}
+document.getElementById('saveToGithubBtn')?.addEventListener('click', function() {
+    this.disabled = true;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+
+    fetch(`/product-management/product-step/${productStepId}/document/?save_to_github=true`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            const message = data.message || 'Document saved to GitHub!';
+            alert(message);
+            if (data.github_url) {
+                window.open(data.github_url, '_blank');
+            }
+            if (data.github_file_path) {
+                console.log('Document saved to:', data.github_file_path);
+            }
+            if (data.github_error) {
+                alert('Warning: ' + data.github_error);
+            }
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+        this.disabled = false;
+        this.innerHTML = '<i class="fab fa-github me-1"></i>Save to GitHub';
+    })
+    .catch(error => {
+        alert('Error saving to GitHub: ' + error);
+        this.disabled = false;
+        this.innerHTML = '<i class="fab fa-github me-1"></i>Save to GitHub';
+    });
+});
+{% endif %}
+
+function loadConversation() {
+    fetch(`/product-management/product-step/${productStepId}/conversation/`)
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.conversation && data.conversation.length > 0) {
+            // Clear welcome message
+            chatMessages.innerHTML = '';
+            data.conversation.forEach(msg => {
+                addMessageToChat(msg.role, msg.content, false);
+            });
+        }
+        if (data.document_content) {
+            document.getElementById('documentPreview').innerHTML = marked.parse(data.document_content);
+            document.getElementById('documentCard').style.display = 'block';
+        }
+    });
+}
+
+function addMessageToChat(role, content, scroll = true) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `mb-3 ${role === 'user' ? 'text-end' : ''}`;
+
+    const bubble = document.createElement('div');
+    bubble.className = `d-inline-block p-3 rounded ${role === 'user' ? 'bg-primary text-white' : 'bg-light'}`;
+    bubble.style.maxWidth = '80%';
+    bubble.style.textAlign = 'left';
+
+    if (role === 'assistant') {
+        bubble.innerHTML = marked.parse(content);
+    } else {
+        bubble.textContent = content;
+    }
+
+    messageDiv.appendChild(bubble);
+    chatMessages.appendChild(messageDiv);
+
+    if (scroll) {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+{% endblock %}

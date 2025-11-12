@@ -12,13 +12,24 @@ logger = logging.getLogger(__name__)
 class ProductDiscoveryAI:
     """AI service for product discovery conversations using OpenAI."""
 
-    def __init__(self, workflow_step):
-        self.workflow_step = workflow_step
+    def __init__(self, workflow_step_or_product_step):
+        """Initialize with either a WorkflowStep or ProductStep."""
+        self.step = workflow_step_or_product_step
+        # For backward compatibility, keep workflow_step reference
+        if hasattr(workflow_step_or_product_step, 'step_type'):
+            self.workflow_step = workflow_step_or_product_step
+        else:
+            self.workflow_step = None
         self.api_key = os.environ.get('OPENAI_API_KEY', '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')
         self.api_url = 'https://api.openai.com/v1/chat/completions'
 
     def get_system_prompt(self):
         """Get the system prompt based on the workflow step type."""
+        # Check if this is a ProductStep
+        if hasattr(self.step, 'layer'):  # ProductStep has layer attribute
+            return self._get_product_step_prompt()
+
+        # Original WorkflowStep prompts
         prompts = {
             'vision': """You are a product management AI assistant helping to define a product vision.
 Guide the user to articulate:
@@ -65,7 +76,165 @@ Guide the user to articulate:
 
 Help them create a well-defined, implementable feature specification.""",
         }
-        return prompts.get(self.workflow_step.step_type, prompts['vision'])
+        return prompts.get(self.step.step_type, prompts['vision'])
+
+    def _get_product_step_prompt(self):
+        """Get the system prompt for ProductStep based on step type."""
+        product_step_prompts = {
+            # STRATEGIC / DISCOVERY LAYER
+            'market_context': """You are a product management AI assistant helping with Market Context analysis.
+Guide the user to validate alignment with:
+- Market trends and dynamics
+- Competitive positioning and landscape
+- Customer segments and target markets
+- Market opportunities and threats
+
+Help them build a comprehensive understanding of the market context for their product.""",
+
+            'discovery_research': """You are a product management AI assistant helping with Discovery Research.
+Guide the user through:
+- User interviews and insights
+- Data analysis methodologies
+- Support ticket mining
+- Customer feedback analysis
+- Research synthesis and findings
+
+Help them gather and analyze qualitative and quantitative research.""",
+
+            'problem_definition': """You are a product management AI assistant helping define the Problem.
+Guide the user to articulate:
+- Core pain points and challenges
+- Affected user personas
+- Impact and severity of the problem
+- Current workarounds or alternatives
+
+Help them clearly define the problem worth solving.""",
+
+            'hypothesis_business_case': """You are a product management AI assistant helping build the Hypothesis & Business Case.
+Guide the user to define:
+- Hypothesis statement
+- Estimated impact (revenue, cost savings, engagement, NPS)
+- Estimated effort (resourcing, time, complexity)
+- Strategic alignment (OKRs, company goals, roadmap themes)
+- Expected ROI and business value
+
+Help them articulate why this is worth doing and what success looks like.""",
+
+            'success_metrics': """You are a product management AI assistant helping define Success Metrics & Guardrails.
+Guide the user to establish:
+- Leading indicators (early signals of success)
+- Lagging indicators (outcome measures)
+- North Star metric
+- Guardrail metrics (what should NOT change)
+- Measurement methodology and tracking
+
+Help them define measurable success criteria.""",
+
+            'stakeholder_buyin': """You are a product management AI assistant helping secure Stakeholder Buy-In.
+Guide the user through:
+- Executive alignment strategies
+- Budget approval requirements
+- Resource allocation needs
+- Communication plan
+- Risk mitigation and concerns
+
+Help them prepare for stakeholder engagement and approval.""",
+
+            # TACTICAL / BUILD LAYER
+            'ideation_design': """You are a product management AI assistant helping with Ideation & Solution Design.
+Guide the user through:
+- Brainstorming potential solutions
+- Design thinking approaches
+- Collaboration with design team
+- Solution alternatives and tradeoffs
+- Conceptual designs and sketches
+
+Help them co-create innovative solutions with design.""",
+
+            'prd_requirements': """You are a product management AI assistant helping create PRD / Requirements Definition.
+Guide the user to capture:
+- Problem statement
+- Goals and objectives
+- User stories and scenarios
+- Acceptance criteria
+- Constraints and dependencies
+- Technical requirements
+
+Help them create a comprehensive PRD.""",
+
+            'design_prototypes': """You are a product management AI assistant helping with Design Prototypes & Validation.
+Guide the user through:
+- Usability testing plans
+- Heuristic reviews
+- Mock feedback loops
+- Prototype iterations
+- Design validation criteria
+
+Help them validate designs with users.""",
+
+            'development': """You are a product management AI assistant helping with Development.
+Guide the user through:
+- Development approach and methodology
+- Sprint planning and execution
+- Technical architecture decisions
+- Progress tracking
+- Blocker resolution
+
+Help them manage the development process effectively.""",
+
+            'qa_uat': """You are a product management AI assistant helping with QA, UAT, and Staging.
+Guide the user through:
+- Cross-functional testing strategies
+- Bug triage and prioritization
+- Regression testing
+- User acceptance testing
+- Staging environment validation
+
+Help them ensure quality before release.""",
+
+            # RELEASE / IMPACT LAYER
+            'gtm_planning': """You are a product management AI assistant helping with Go-to-Market Planning.
+Guide the user to develop:
+- Launch strategy and timeline
+- Communication plan
+- Internal training materials
+- Marketing materials
+- Customer communication
+- Support preparation
+
+Help them plan a successful product launch.""",
+
+            'release_execution': """You are a product management AI assistant helping with Release Execution.
+Guide the user through:
+- Phased rollout strategies
+- A/B testing setup
+- Real-time data monitoring
+- Incident response plan
+- Feature flags and controls
+
+Help them execute a controlled, monitored release.""",
+
+            'post_launch': """You are a product management AI assistant helping with Post-Launch Validation.
+Guide the user to:
+- Confirm success metrics
+- Survey users for feedback
+- Monitor performance and stability
+- Analyze adoption rates
+- Identify issues and opportunities
+
+Help them validate the launch impact.""",
+
+            'retrospective': """You are a product management AI assistant helping with Retrospective & Learnings.
+Guide the user to document:
+- Outcomes vs. hypothesis comparison
+- What went well
+- What could be improved
+- Key learnings and insights
+- Actions for future iterations
+
+Help them capture valuable learnings for continuous improvement.""",
+        }
+        return product_step_prompts.get(self.step.step_type, product_step_prompts['market_context'])
 
     def send_message(self, user_message):
         """Send a message to OpenAI and get a response."""
@@ -76,13 +245,13 @@ Help them create a well-defined, implementable feature specification.""",
             }
 
         # Add user message to conversation history
-        self.workflow_step.add_message('user', user_message)
+        self.step.add_message('user', user_message)
 
         # Build messages array for OpenAI
         messages = [
             {'role': 'system', 'content': self.get_system_prompt()}
         ]
-        messages.extend(self.workflow_step.get_conversation_context())
+        messages.extend(self.step.get_conversation_context())
 
         try:
             headers = {
@@ -104,12 +273,12 @@ Help them create a well-defined, implementable feature specification.""",
             assistant_message = result['choices'][0]['message']['content']
 
             # Add assistant message to conversation history
-            self.workflow_step.add_message('assistant', assistant_message)
+            self.step.add_message('assistant', assistant_message)
 
             return {
                 'success': True,
                 'message': assistant_message,
-                'conversation_id': self.workflow_step.id
+                'conversation_id': self.step.id
             }
 
         except requests.RequestException as e:
@@ -132,13 +301,13 @@ Help them create a well-defined, implementable feature specification.""",
             return
 
         # Add user message to conversation history
-        self.workflow_step.add_message('user', user_message)
+        self.step.add_message('user', user_message)
 
         # Build messages array for OpenAI
         messages = [
             {'role': 'system', 'content': self.get_system_prompt()}
         ]
-        messages.extend(self.workflow_step.get_conversation_context())
+        messages.extend(self.step.get_conversation_context())
 
         try:
             headers = {
@@ -179,8 +348,8 @@ Help them create a well-defined, implementable feature specification.""",
 
             # Save the complete message to conversation history
             if full_message:
-                self.workflow_step.add_message('assistant', full_message)
-                yield f'data: {json.dumps({"done": True, "conversation_id": self.workflow_step.id})}\n\n'
+                self.step.add_message('assistant', full_message)
+                yield f'data: {json.dumps({"done": True, "conversation_id": self.step.id})}\n\n'
 
         except requests.RequestException as e:
             logger.error(f"OpenAI API error: {str(e)}")
@@ -190,22 +359,23 @@ Help them create a well-defined, implementable feature specification.""",
             yield f'data: {json.dumps({"error": f"Unexpected error: {str(e)}"})}\n\n'
 
     def generate_readme(self):
-        """Generate README content from the conversation history."""
+        """Generate README/document content from the conversation history."""
         if not self.api_key:
             return {
                 'success': False,
                 'error': 'OpenAI API key not configured.'
             }
 
-        if not self.workflow_step.conversation_history:
+        if not self.step.conversation_history:
             return {
                 'success': False,
-                'error': 'No conversation history to generate README from.'
+                'error': 'No conversation history to generate document from.'
             }
 
         # Create a prompt to summarize the conversation into README format
-        summary_prompt = f"""Based on the conversation above about this {self.workflow_step.get_step_type_display()},
-create a comprehensive README document that captures:
+        step_display = self.step.get_step_type_display()
+        summary_prompt = f"""Based on the conversation above about this {step_display},
+create a comprehensive document that captures:
 
 1. Overview and summary
 2. Key decisions and conclusions
@@ -218,7 +388,7 @@ The README should be clear, professional, and useful as project documentation.""
         messages = [
             {'role': 'system', 'content': 'You are a technical writer creating project documentation.'}
         ]
-        messages.extend(self.workflow_step.get_conversation_context())
+        messages.extend(self.step.get_conversation_context())
         messages.append({'role': 'user', 'content': summary_prompt})
 
         try:
@@ -240,10 +410,14 @@ The README should be clear, professional, and useful as project documentation.""
 
             readme_content = result['choices'][0]['message']['content']
 
-            # Save README to workflow step
-            self.workflow_step.readme_content = readme_content
-            self.workflow_step.readme_generated_at = timezone.now()
-            self.workflow_step.save()
+            # Save content to step (works for both WorkflowStep and ProductStep)
+            if hasattr(self.step, 'readme_content'):
+                self.step.readme_content = readme_content
+                self.step.readme_generated_at = timezone.now()
+            elif hasattr(self.step, 'document_content'):
+                self.step.document_content = readme_content
+                self.step.document_generated_at = timezone.now()
+            self.step.save()
 
             return {
                 'success': True,
@@ -265,10 +439,11 @@ The README should be clear, professional, and useful as project documentation.""
 
     def save_readme_to_github(self, github_connection, repository):
         """Save the generated README to GitHub repository."""
-        if not self.workflow_step.readme_content:
+        content = getattr(self.step, 'readme_content', None) or getattr(self.step, 'document_content', None)
+        if not content:
             return {
                 'success': False,
-                'error': 'No README content to save.'
+                'error': 'No document content to save.'
             }
 
         try:
@@ -294,11 +469,11 @@ The README should be clear, professional, and useful as project documentation.""
 
             # Prepare content (base64 encoded)
             import base64
-            content_bytes = self.workflow_step.readme_content.encode('utf-8')
+            content_bytes = content.encode('utf-8')
             content_base64 = base64.b64encode(content_bytes).decode('utf-8')
 
             data = {
-                'message': f'Add/Update {self.workflow_step.get_step_type_display()} README: {self.workflow_step.title}',
+                'message': f'Add/Update {self.step.get_step_type_display()} Document: {self.step.title}',
                 'content': content_base64,
                 'branch': repository.default_branch,
             }
@@ -329,20 +504,40 @@ The README should be clear, professional, and useful as project documentation.""
             }
 
     def _construct_readme_path(self):
-        """Construct the file path for the README based on workflow hierarchy."""
+        """Construct the file path for the document based on hierarchy."""
         path_parts = ['product_discovery']
 
-        # Build path from parent hierarchy
-        current = self.workflow_step
-        hierarchy = []
-        while current:
-            hierarchy.insert(0, current)
-            current = current.parent_step
+        # Check if this is a ProductStep
+        if hasattr(self.step, 'layer'):
+            # ProductStep - create path based on product hierarchy
+            product = self.step.product
+            workflow_step = product.workflow_step
 
-        # Create path: product_discovery/vision/initiative/portfolio/product/feature/README.md
-        for step in hierarchy:
-            safe_title = step.title.lower().replace(' ', '_').replace('/', '_')
-            path_parts.append(f"{step.step_type}_{safe_title}")
+            # Build path from workflow hierarchy
+            current = workflow_step
+            hierarchy = []
+            while current:
+                hierarchy.insert(0, current)
+                current = current.parent_step
+
+            for step in hierarchy:
+                safe_title = step.title.lower().replace(' ', '_').replace('/', '_')
+                path_parts.append(f"{step.step_type}_{safe_title}")
+
+            # Add product step
+            safe_title = self.step.title.lower().replace(' ', '_').replace('/', '_')
+            path_parts.append(f"{self.step.step_type}_{safe_title}")
+        else:
+            # WorkflowStep - original logic
+            current = self.step
+            hierarchy = []
+            while current:
+                hierarchy.insert(0, current)
+                current = current.parent_step
+
+            for step in hierarchy:
+                safe_title = step.title.lower().replace(' ', '_').replace('/', '_')
+                path_parts.append(f"{step.step_type}_{safe_title}")
 
         path_parts.append('README.md')
         return '/'.join(path_parts)

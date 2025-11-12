@@ -201,3 +201,94 @@ class Feature(models.Model):
     class Meta:
         verbose_name = "Feature"
         verbose_name_plural = "Features"
+
+
+class ProductStep(models.Model):
+    """Individual steps within a Product's development lifecycle."""
+
+    STEP_TYPE_CHOICES = [
+        # STRATEGIC / DISCOVERY LAYER
+        ('market_context', 'Market Context'),
+        ('discovery_research', 'Discovery Research'),
+        ('problem_definition', 'Problem Definition'),
+        ('hypothesis_business_case', 'Hypothesis & Business Case'),
+        ('success_metrics', 'Success Metrics & Guardrails'),
+        ('stakeholder_buyin', 'Stakeholder Buy-In'),
+
+        # TACTICAL / BUILD LAYER
+        ('ideation_design', 'Ideation & Solution Design'),
+        ('prd_requirements', 'PRD / Requirements Definition'),
+        ('design_prototypes', 'Design Prototypes + Validation'),
+        ('development', 'Development'),
+        ('qa_uat', 'QA, UAT, and Staging'),
+
+        # RELEASE / IMPACT LAYER
+        ('gtm_planning', 'Go-to-Market Planning'),
+        ('release_execution', 'Release Execution'),
+        ('post_launch', 'Post-Launch Validation'),
+        ('retrospective', 'Retrospective & Learnings'),
+    ]
+
+    LAYER_CHOICES = [
+        ('strategic', 'Strategic / Discovery Layer'),
+        ('tactical', 'Tactical / Build Layer'),
+        ('release', 'Release / Impact Layer'),
+    ]
+
+    product = models.ForeignKey(
+        Product,
+        on_delete=models.CASCADE,
+        related_name='product_steps'
+    )
+    step_type = models.CharField(max_length=50, choices=STEP_TYPE_CHOICES)
+    layer = models.CharField(max_length=20, choices=LAYER_CHOICES)
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    order = models.PositiveIntegerField(default=0)
+
+    # AI conversation history (stored as JSON)
+    conversation_history = models.JSONField(default=list, blank=True)
+
+    # Document content generated from the conversation
+    document_content = models.TextField(blank=True)
+    document_generated_at = models.DateTimeField(null=True, blank=True)
+
+    # Status
+    is_completed = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.get_step_type_display()} - {self.title}"
+
+    def add_message(self, role, content):
+        """Add a message to the conversation history."""
+        if not isinstance(self.conversation_history, list):
+            self.conversation_history = []
+
+        self.conversation_history.append({
+            'role': role,
+            'content': content,
+            'timestamp': None
+        })
+        self.save()
+
+    def get_conversation_context(self):
+        """Get formatted conversation history for OpenAI API."""
+        if not isinstance(self.conversation_history, list):
+            return []
+
+        return [
+            {'role': msg['role'], 'content': msg['content']}
+            for msg in self.conversation_history
+        ]
+
+    class Meta:
+        verbose_name = "Product Step"
+        verbose_name_plural = "Product Steps"
+        ordering = ['product', 'order', 'created_at']
+        indexes = [
+            models.Index(fields=['product', 'step_type']),
+            models.Index(fields=['product', 'order']),
+        ]

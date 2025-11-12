@@ -22,4 +22,13 @@ urlpatterns = [
     path('workflow/<int:step_id>/conversation/', views.get_conversation, name='get_conversation'),
     path('workflow/<int:step_id>/readme/', views.generate_readme, name='generate_readme'),
     path('workflow/<int:step_id>/complete/', views.complete_step, name='complete_step'),
+
+    # Product steps
+    path('product/<int:step_id>/steps/', views.product_steps, name='product_steps'),
+    path('product/<int:step_id>/step/create/', views.create_product_step, name='create_product_step'),
+    path('product-step/<int:product_step_id>/', views.product_step_chat, name='product_step_chat'),
+    path('product-step/<int:product_step_id>/message/', views.send_product_step_message, name='send_product_step_message'),
+    path('product-step/<int:product_step_id>/conversation/', views.get_product_step_conversation, name='get_product_step_conversation'),
+    path('product-step/<int:product_step_id>/document/', views.generate_product_step_document, name='generate_product_step_document'),
+    path('product-step/<int:product_step_id>/complete/', views.complete_product_step, name='complete_product_step'),
 ]

@@ -1,0 +1,339 @@
+{% extends 'product_management/base.html' %}
+
+{% block title %}{{ product.workflow_step.title }} - Product Steps{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{% url 'product_management:index' %}">Projects</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'product_management:project_detail' project.id %}">{{ project.name }}</a></li>
+                <li class="breadcrumb-item active">{{ product.workflow_step.title }} - Steps</li>
+            </ol>
+        </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card card-gradient mb-4">
+            <div class="card-body">
+                <h2 class="mb-2">{{ product.workflow_step.title }}</h2>
+                <p class="mb-0 opacity-75">Product Development Lifecycle: Strategic → Tactical → Release</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <h3 class="section-title">
+            <i class="fas fa-tasks me-2"></i>Product Development Steps
+        </h3>
+        <p class="text-muted mb-4">Follow the structured product development process with AI-assisted documentation and conversations at each step.</p>
+    </div>
+</div>
+
+<!-- STRATEGIC / DISCOVERY LAYER -->
+<div class="row mb-4">
+    <div class="col-12">
+        <h4 class="mb-3">
+            <span class="badge bg-info text-white px-3 py-2">
+                <i class="fas fa-lightbulb me-2"></i>Strategic / Discovery Layer
+            </span>
+        </h4>
+    </div>
+</div>
+
+<div class="row">
+    {% for step in steps_by_layer.strategic %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-white border-0 pt-3">
+                <h5 class="mb-0">
+                    <span class="workflow-badge badge-product">
+                        {{ forloop.counter }}. {{ step.get_step_type_display }}
+                    </span>
+                    {% if step.is_completed %}
+                    <span class="badge bg-success float-end"><i class="fas fa-check"></i></span>
+                    {% endif %}
+                </h5>
+            </div>
+            <div class="card-body">
+                <h6 class="mb-2">{{ step.title }}</h6>
+                <small class="text-muted">{{ step.description|truncatewords:15 }}</small>
+                <div class="mt-3">
+                    <a href="{% url 'product_management:product_step_chat' step.id %}" class="btn btn-sm btn-creative-outline">
+                        Open <i class="fas fa-arrow-right ms-1"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="alert alert-light">
+            <i class="fas fa-info-circle me-2"></i>No strategic steps defined yet. Click "Add Step" below to create one.
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="row mb-5">
+    <div class="col-12">
+        <button class="btn btn-creative-outline btn-sm" onclick="showAddStepModal('strategic')">
+            <i class="fas fa-plus me-1"></i>Add Strategic Step
+        </button>
+    </div>
+</div>
+
+<!-- TACTICAL / BUILD LAYER -->
+<div class="row mb-4">
+    <div class="col-12">
+        <h4 class="mb-3">
+            <span class="badge bg-warning text-dark px-3 py-2">
+                <i class="fas fa-tools me-2"></i>Tactical / Build Layer
+            </span>
+        </h4>
+    </div>
+</div>
+
+<div class="row">
+    {% for step in steps_by_layer.tactical %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-white border-0 pt-3">
+                <h5 class="mb-0">
+                    <span class="workflow-badge badge-product">
+                        {{ forloop.counter|add:6 }}. {{ step.get_step_type_display }}
+                    </span>
+                    {% if step.is_completed %}
+                    <span class="badge bg-success float-end"><i class="fas fa-check"></i></span>
+                    {% endif %}
+                </h5>
+            </div>
+            <div class="card-body">
+                <h6 class="mb-2">{{ step.title }}</h6>
+                <small class="text-muted">{{ step.description|truncatewords:15 }}</small>
+                <div class="mt-3">
+                    <a href="{% url 'product_management:product_step_chat' step.id %}" class="btn btn-sm btn-creative-outline">
+                        Open <i class="fas fa-arrow-right ms-1"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="alert alert-light">
+            <i class="fas fa-info-circle me-2"></i>No tactical steps defined yet. Click "Add Step" below to create one.
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="row mb-5">
+    <div class="col-12">
+        <button class="btn btn-creative-outline btn-sm" onclick="showAddStepModal('tactical')">
+            <i class="fas fa-plus me-1"></i>Add Tactical Step
+        </button>
+    </div>
+</div>
+
+<!-- RELEASE / IMPACT LAYER -->
+<div class="row mb-4">
+    <div class="col-12">
+        <h4 class="mb-3">
+            <span class="badge bg-success text-white px-3 py-2">
+                <i class="fas fa-rocket me-2"></i>Release / Impact Layer
+            </span>
+        </h4>
+    </div>
+</div>
+
+<div class="row">
+    {% for step in steps_by_layer.release %}
+    <div class="col-md-6 col-lg-4 mb-4">
+        <div class="card h-100">
+            <div class="card-header bg-white border-0 pt-3">
+                <h5 class="mb-0">
+                    <span class="workflow-badge badge-product">
+                        {{ forloop.counter|add:11 }}. {{ step.get_step_type_display }}
+                    </span>
+                    {% if step.is_completed %}
+                    <span class="badge bg-success float-end"><i class="fas fa-check"></i></span>
+                    {% endif %}
+                </h5>
+            </div>
+            <div class="card-body">
+                <h6 class="mb-2">{{ step.title }}</h6>
+                <small class="text-muted">{{ step.description|truncatewords:15 }}</small>
+                <div class="mt-3">
+                    <a href="{% url 'product_management:product_step_chat' step.id %}" class="btn btn-sm btn-creative-outline">
+                        Open <i class="fas fa-arrow-right ms-1"></i>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="alert alert-light">
+            <i class="fas fa-info-circle me-2"></i>No release steps defined yet. Click "Add Step" below to create one.
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<div class="row mb-5">
+    <div class="col-12">
+        <button class="btn btn-creative-outline btn-sm" onclick="showAddStepModal('release')">
+            <i class="fas fa-plus me-1"></i>Add Release Step
+        </button>
+    </div>
+</div>
+
+<!-- Add Step Modal -->
+<div class="modal fade" id="addStepModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add Product Step</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addStepForm">
+                    <input type="hidden" id="stepLayer" name="layer">
+
+                    <div class="mb-3">
+                        <label for="stepType" class="form-label">Step Type</label>
+                        <select class="form-select" id="stepType" name="step_type" required>
+                            <option value="">Select a step type...</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="stepTitle" class="form-label">Title</label>
+                        <input type="text" class="form-control" id="stepTitle" name="title" required>
+                    </div>
+
+                    <div class="mb-3">
+                        <label for="stepDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="stepDescription" name="description" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-creative" onclick="addStep()">Create Step</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+const workflowStepId = {{ workflow_step.id }};
+let currentLayer = '';
+
+const stepTypesByLayer = {
+    'strategic': [
+        { value: 'market_context', label: 'Market Context' },
+        { value: 'discovery_research', label: 'Discovery Research' },
+        { value: 'problem_definition', label: 'Problem Definition' },
+        { value: 'hypothesis_business_case', label: 'Hypothesis & Business Case' },
+        { value: 'success_metrics', label: 'Success Metrics & Guardrails' },
+        { value: 'stakeholder_buyin', label: 'Stakeholder Buy-In' }
+    ],
+    'tactical': [
+        { value: 'ideation_design', label: 'Ideation & Solution Design' },
+        { value: 'prd_requirements', label: 'PRD / Requirements Definition' },
+        { value: 'design_prototypes', label: 'Design Prototypes + Validation' },
+        { value: 'development', label: 'Development' },
+        { value: 'qa_uat', label: 'QA, UAT, and Staging' }
+    ],
+    'release': [
+        { value: 'gtm_planning', label: 'Go-to-Market Planning' },
+        { value: 'release_execution', label: 'Release Execution' },
+        { value: 'post_launch', label: 'Post-Launch Validation' },
+        { value: 'retrospective', label: 'Retrospective & Learnings' }
+    ]
+};
+
+function showAddStepModal(layer) {
+    currentLayer = layer;
+    document.getElementById('stepLayer').value = layer;
+
+    // Populate step type dropdown based on layer
+    const stepTypeSelect = document.getElementById('stepType');
+    stepTypeSelect.innerHTML = '<option value="">Select a step type...</option>';
+
+    stepTypesByLayer[layer].forEach(stepType => {
+        const option = document.createElement('option');
+        option.value = stepType.value;
+        option.textContent = stepType.label;
+        stepTypeSelect.appendChild(option);
+    });
+
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('addStepModal'));
+    modal.show();
+}
+
+function addStep() {
+    const form = document.getElementById('addStepForm');
+    const formData = new FormData(form);
+
+    const data = {
+        layer: formData.get('layer'),
+        step_type: formData.get('step_type'),
+        title: formData.get('title'),
+        description: formData.get('description')
+    };
+
+    if (!data.step_type || !data.title) {
+        alert('Please fill in all required fields.');
+        return;
+    }
+
+    fetch(`/product-management/product/${workflowStepId}/step/create/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            window.location.reload();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    })
+    .catch(error => {
+        alert('Error creating step: ' + error);
+    });
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %}

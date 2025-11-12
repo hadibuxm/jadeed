@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     Project, WorkflowStep, Vision, Initiative,
-    Portfolio, Product, Feature
+    Portfolio, Product, Feature, ProductStep
 )
 
 
@@ -45,3 +45,12 @@ class ProductAdmin(admin.ModelAdmin):
 class FeatureAdmin(admin.ModelAdmin):
     list_display = ('workflow_step', 'priority')
     list_filter = ('priority',)
+
+
+@admin.register(ProductStep)
+class ProductStepAdmin(admin.ModelAdmin):
+    list_display = ('title', 'step_type', 'layer', 'product', 'order', 'is_completed', 'created_at')
+    list_filter = ('step_type', 'layer', 'is_completed', 'created_at')
+    search_fields = ('title', 'description')
+    readonly_fields = ('created_at', 'updated_at', 'document_generated_at')
+    ordering = ('product', 'order', 'created_at')
