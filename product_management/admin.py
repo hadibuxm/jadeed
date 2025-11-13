@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     Project, WorkflowStep, Vision, Initiative,
-    Portfolio, Product, Feature, ProductStep
+    Portfolio, Product, Feature, ProductStep, FeatureStep, RecentItem
 )
 
 
@@ -15,10 +15,10 @@ class ProjectAdmin(admin.ModelAdmin):
 
 @admin.register(WorkflowStep)
 class WorkflowStepAdmin(admin.ModelAdmin):
-    list_display = ('title', 'step_type', 'project', 'parent_step', 'is_completed', 'created_at')
+    list_display = ('reference_id', 'title', 'step_type', 'project', 'parent_step', 'is_completed', 'created_at')
     list_filter = ('step_type', 'is_completed', 'created_at')
-    search_fields = ('title', 'description')
-    readonly_fields = ('created_at', 'updated_at', 'readme_generated_at')
+    search_fields = ('title', 'description', 'reference_id')
+    readonly_fields = ('reference_id', 'created_at', 'updated_at', 'readme_generated_at')
 
 
 @admin.register(Vision)
@@ -54,3 +54,21 @@ class ProductStepAdmin(admin.ModelAdmin):
     search_fields = ('title', 'description')
     readonly_fields = ('created_at', 'updated_at', 'document_generated_at')
     ordering = ('product', 'order', 'created_at')
+
+
+@admin.register(FeatureStep)
+class FeatureStepAdmin(admin.ModelAdmin):
+    list_display = ('title', 'step_type', 'layer', 'feature', 'order', 'is_completed', 'created_at')
+    list_filter = ('step_type', 'layer', 'is_completed', 'created_at')
+    search_fields = ('title', 'description')
+    readonly_fields = ('created_at', 'updated_at', 'document_generated_at')
+    ordering = ('feature', 'order', 'created_at')
+
+
+@admin.register(RecentItem)
+class RecentItemAdmin(admin.ModelAdmin):
+    list_display = ('user', 'item_type', 'item_title', 'accessed_at')
+    list_filter = ('item_type', 'accessed_at', 'user')
+    search_fields = ('item_title', 'user__username')
+    readonly_fields = ('accessed_at',)
+    ordering = ('-accessed_at',)

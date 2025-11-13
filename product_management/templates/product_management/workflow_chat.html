@@ -1,6 +1,6 @@
 {% extends 'product_management/base.html' %}
 
-{% block title %}{{ workflow_step.title }} - {{ workflow_step.get_step_type_display }}{% endblock %}
+{% block title %}{{ workflow_step.title }}{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -56,11 +56,56 @@
     <div class="col-12">
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="{% url 'product_management:index' %}">Projects</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'product_management:hierarchy' %}">Roadmap</a></li>
+                {% if project %}
                 <li class="breadcrumb-item"><a href="{% url 'product_management:project_detail' project.id %}">{{ project.name }}</a></li>
-                <li class="breadcrumb-item active">{{ workflow_step.title }}</li>
+                {% endif %}
+                {% for item in hierarchy %}
+                    {% if forloop.last %}
+                        <li class="breadcrumb-item active" aria-current="page">
+                            <span class="badge badge-{{ item.step_type }} me-1">{{ item.get_step_type_display }}</span>
+                            {{ item.title }}
+                        </li>
+                    {% else %}
+                        <li class="breadcrumb-item">
+                            <span class="badge badge-{{ item.step_type }} me-1">{{ item.get_step_type_display }}</span>
+                            {% if item.step_type == 'product' %}
+                                <a href="{% url 'product_management:product_steps' item.id %}">{{ item.title }}</a>
+                            {% elif item.step_type == 'feature' %}
+                                <a href="{% url 'product_management:workflow_chat' item.id %}">{{ item.title }}</a>
+                            {% else %}
+                                <a href="{% url 'product_management:workflow_chat' item.id %}">{{ item.title }}</a>
+                            {% endif %}
+                        </li>
+                    {% endif %}
+                {% endfor %}
             </ol>
         </nav>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-start">
+            <div class="flex-grow-1">
+                <h1 class="mb-2">
+                    {% if workflow_step.reference_id %}<span class="badge bg-secondary me-2">{{ workflow_step.reference_id }}</span>{% endif %}
+                    <span class="badge badge-{{ workflow_step.step_type }} me-2">{{ workflow_step.get_step_type_display }}</span>
+                    {{ workflow_step.title }}
+                </h1>
+                {% if workflow_step.description %}
+                <p class="text-muted">{{ workflow_step.description }}</p>
+                {% endif %}
+            </div>
+            <div>
+                <button class="btn btn-danger btn-sm delete-workflow-step-btn"
+                        data-step-id="{{ workflow_step.id }}"
+                        data-step-title="{{ workflow_step.title }}"
+                        data-step-type="{{ workflow_step.get_step_type_display }}">
+                    <i class="fas fa-trash me-1"></i>Delete {{ workflow_step.get_step_type_display }}
+                </button>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -570,6 +615,38 @@ function addMessageToChat(role, content, scroll = true) {
         chatContainer.scrollTop = chatContainer.scrollHeight;
     }
 }
+
+// Delete workflow step
+document.querySelector('.delete-workflow-step-btn')?.addEventListener('click', function() {
+    const stepId = this.getAttribute('data-step-id');
+    const stepTitle = this.getAttribute('data-step-title');
+    const stepType = this.getAttribute('data-step-type');
+
+    if (confirm(`Are you sure you want to delete the ${stepType} "${stepTitle}"? This action cannot be undone.`)) {
+        fetch(`/product-management/workflow/${stepId}/delete/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                if (data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                } else {
+                    window.location.href = '/product-management/';
+                }
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('Error deleting workflow step: ' + error);
+        });
+    }
+});
 
 function getCookie(name) {
     let cookieValue = null;

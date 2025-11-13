@@ -10,7 +10,7 @@ from django.db.models import Q
 from github.models import GitHubConnection, GitHubRepository
 from .models import (
     Project, WorkflowStep, Vision, Initiative,
-    Portfolio, Product, Feature, ProductStep
+    Portfolio, Product, Feature, ProductStep, RecentItem
 )
 from .ai_service import ProductDiscoveryAI
 import requests
@@ -23,6 +23,19 @@ def index(request):
     """Main product management dashboard."""
     projects = Project.objects.filter(user=request.user)
 
+    # Get all products - both project-associated and standalone (owned by user)
+    products = Product.objects.filter(
+        Q(workflow_step__project__user=request.user) | Q(workflow_step__user=request.user)
+    ).select_related('workflow_step', 'workflow_step__project').distinct()
+
+    # Get all features - both project-associated and standalone (owned by user)
+    features = Feature.objects.filter(
+        Q(workflow_step__project__user=request.user) | Q(workflow_step__user=request.user)
+    ).select_related('workflow_step', 'workflow_step__project', 'workflow_step__parent_step').distinct()
+
+    # Get recent items for quick access (limit to 5 most recent)
+    recent_items = RecentItem.objects.filter(user=request.user)[:5]
+
     # Check if user has GitHub connection
     try:
         github_connection = request.user.github_connection
@@ -33,9 +46,46 @@ def index(request):
 
     context = {
         'projects': projects,
+        'products': products,
+        'features': features,
+        'recent_items': recent_items,
         'has_github': has_github,
     }
     return render(request, 'product_management/index.html', context)
+
+
+@login_required
+def hierarchy_view(request):
+    """Hierarchical tree view of all workflow items."""
+    projects = Project.objects.filter(user=request.user).prefetch_related(
+        'workflow_steps',
+        'workflow_steps__child_steps',
+    )
+
+    # Build hierarchy for each project organized by levels
+    hierarchy_data = []
+    for project in projects:
+        # Organize steps by type/level
+        visions = project.workflow_steps.filter(step_type='vision')
+        initiatives = project.workflow_steps.filter(step_type='initiative')
+        portfolios = project.workflow_steps.filter(step_type='portfolio')
+        products = project.workflow_steps.filter(step_type='product')
+        features = project.workflow_steps.filter(step_type='feature')
+
+        project_data = {
+            'project': project,
+            'visions': visions,
+            'initiatives': initiatives,
+            'portfolios': portfolios,
+            'products': products,
+            'features': features,
+        }
+        hierarchy_data.append(project_data)
+
+    context = {
+        'hierarchy_data': hierarchy_data,
+    }
+    return render(request, 'product_management/hierarchy.html', context)
 
 
 @login_required
@@ -213,9 +263,12 @@ def project_detail(request, project_id):
 
 @login_required
 @require_POST
-def create_workflow_step(request, project_id):
-    """Create a new workflow step."""
-    project = get_object_or_404(Project, id=project_id, user=request.user)
+def create_workflow_step(request, project_id=None):
+    """Create a new workflow step (with or without project)."""
+    # Get project if provided
+    project = None
+    if project_id:
+        project = get_object_or_404(Project, id=project_id, user=request.user)
 
     try:
         data = json.loads(request.body)
@@ -223,6 +276,14 @@ def create_workflow_step(request, project_id):
         title = data.get('title', '').strip()
         description = data.get('description', '').strip()
         parent_step_id = data.get('parent_step_id')
+        provided_project_id = data.get('project_id')
+
+        # Use provided project_id if no URL project_id
+        if not project and provided_project_id:
+            try:
+                project = Project.objects.get(id=provided_project_id, user=request.user)
+            except Project.DoesNotExist:
+                pass
 
         if not step_type or not title:
             return JsonResponse({
@@ -242,10 +303,17 @@ def create_workflow_step(request, project_id):
         parent_step = None
         if parent_step_id:
             try:
-                parent_step = WorkflowStep.objects.get(
-                    id=parent_step_id,
-                    project=project
-                )
+                # Query for parent step - it may or may not have a project
+                parent_step = WorkflowStep.objects.get(id=parent_step_id)
+                # Verify user has access (either through project or verify it's accessible)
+                if parent_step.project and parent_step.project.user != request.user:
+                    return JsonResponse({
+                        'success': False,
+                        'error': 'Parent step not found.'
+                    }, status=404)
+                # If parent has project but we don't, inherit it
+                if not project and parent_step.project:
+                    project = parent_step.project
             except WorkflowStep.DoesNotExist:
                 return JsonResponse({
                     'success': False,
@@ -254,7 +322,8 @@ def create_workflow_step(request, project_id):
 
         # Create workflow step
         workflow_step = WorkflowStep.objects.create(
-            project=project,
+            project=project,  # Can be None for standalone steps
+            user=request.user if not project else None,  # Set user for standalone steps
             step_type=step_type,
             title=title,
             description=description,
@@ -295,11 +364,23 @@ def create_workflow_step(request, project_id):
 @login_required
 def workflow_chat(request, step_id):
     """Chat interface for AI-assisted workflow step."""
-    workflow_step = get_object_or_404(
-        WorkflowStep,
-        id=step_id,
-        project__user=request.user
-    )
+    workflow_step = get_object_or_404(WorkflowStep, id=step_id)
+
+    # Verify user has access (either through project or standalone with user ownership)
+    if workflow_step.project:
+        if workflow_step.project.user != request.user:
+            from django.http import Http404
+            raise Http404("Workflow step not found.")
+    elif workflow_step.user and workflow_step.user != request.user:
+        from django.http import Http404
+        raise Http404("Workflow step not found.")
+
+    # Build hierarchy breadcrumbs
+    hierarchy = []
+    current = workflow_step
+    while current:
+        hierarchy.insert(0, current)
+        current = current.parent_step
 
     # Serialize conversation history to JSON for JavaScript
     conversation_json = json.dumps(workflow_step.conversation_history or [])
@@ -307,6 +388,7 @@ def workflow_chat(request, step_id):
     context = {
         'workflow_step': workflow_step,
         'project': workflow_step.project,
+        'hierarchy': hierarchy,
         'conversation_json': conversation_json,
     }
     return render(request, 'product_management/workflow_chat.html', context)
@@ -316,11 +398,20 @@ def workflow_chat(request, step_id):
 @require_POST
 def send_message(request, step_id):
     """Send a message to the AI assistant with streaming support."""
-    workflow_step = get_object_or_404(
-        WorkflowStep,
-        id=step_id,
-        project__user=request.user
-    )
+    workflow_step = get_object_or_404(WorkflowStep, id=step_id)
+
+    # Verify user has access (either through project or standalone with user ownership)
+    if workflow_step.project:
+        if workflow_step.project.user != request.user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Workflow step not found.'
+            }, status=404)
+    elif workflow_step.user and workflow_step.user != request.user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Workflow step not found.'
+        }, status=404)
 
     try:
         data = json.loads(request.body)
@@ -367,11 +458,20 @@ def send_message(request, step_id):
 @login_required
 def get_conversation(request, step_id):
     """Get the conversation history for a workflow step."""
-    workflow_step = get_object_or_404(
-        WorkflowStep,
-        id=step_id,
-        project__user=request.user
-    )
+    workflow_step = get_object_or_404(WorkflowStep, id=step_id)
+
+    # Verify user has access (either through project or standalone with user ownership)
+    if workflow_step.project:
+        if workflow_step.project.user != request.user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Workflow step not found.'
+            }, status=404)
+    elif workflow_step.user and workflow_step.user != request.user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Workflow step not found.'
+        }, status=404)
 
     return JsonResponse({
         'success': True,
@@ -385,11 +485,20 @@ def get_conversation(request, step_id):
 @require_POST
 def generate_readme(request, step_id):
     """Generate README from conversation history."""
-    workflow_step = get_object_or_404(
-        WorkflowStep,
-        id=step_id,
-        project__user=request.user
-    )
+    workflow_step = get_object_or_404(WorkflowStep, id=step_id)
+
+    # Verify user has access (either through project or standalone with user ownership)
+    if workflow_step.project:
+        if workflow_step.project.user != request.user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Workflow step not found.'
+            }, status=404)
+    elif workflow_step.user and workflow_step.user != request.user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Workflow step not found.'
+        }, status=404)
 
     try:
         ai_service = ProductDiscoveryAI(workflow_step)
@@ -436,11 +545,20 @@ def generate_readme(request, step_id):
 @require_POST
 def complete_step(request, step_id):
     """Mark a workflow step as completed."""
-    workflow_step = get_object_or_404(
-        WorkflowStep,
-        id=step_id,
-        project__user=request.user
-    )
+    workflow_step = get_object_or_404(WorkflowStep, id=step_id)
+
+    # Verify user has access (either through project or standalone with user ownership)
+    if workflow_step.project:
+        if workflow_step.project.user != request.user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Workflow step not found.'
+            }, status=404)
+    elif workflow_step.user and workflow_step.user != request.user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Workflow step not found.'
+        }, status=404)
 
     workflow_step.is_completed = True
     workflow_step.save()
@@ -483,18 +601,32 @@ def get_repositories(request):
 @login_required
 def product_steps(request, step_id):
     """View product steps for a product."""
-    workflow_step = get_object_or_404(
-        WorkflowStep,
-        id=step_id,
-        step_type='product',
-        project__user=request.user
-    )
+    workflow_step = get_object_or_404(WorkflowStep, id=step_id, step_type='product')
+
+    # Verify user has access (either through project or standalone with user ownership)
+    if workflow_step.project:
+        if workflow_step.project.user != request.user:
+            from django.http import Http404
+            raise Http404("Product not found.")
+    elif workflow_step.user and workflow_step.user != request.user:
+        from django.http import Http404
+        raise Http404("Product not found.")
 
     try:
         product = workflow_step.product_details
     except Product.DoesNotExist:
         messages.error(request, 'Product details not found.')
-        return redirect('product_management:project_detail', project_id=workflow_step.project.id)
+        if workflow_step.project:
+            return redirect('product_management:project_detail', project_id=workflow_step.project.id)
+        else:
+            return redirect('product_management:index')
+
+    # Build hierarchy breadcrumbs
+    hierarchy = []
+    current = workflow_step
+    while current:
+        hierarchy.insert(0, current)
+        current = current.parent_step
 
     # Get all product steps for this product, ordered by layer and order
     product_steps = ProductStep.objects.filter(product=product).order_by('order', 'created_at')
@@ -510,6 +642,7 @@ def product_steps(request, step_id):
         'workflow_step': workflow_step,
         'product': product,
         'project': workflow_step.project,
+        'hierarchy': hierarchy,
         'product_steps': product_steps,
         'steps_by_layer': steps_by_layer,
     }
@@ -520,12 +653,20 @@ def product_steps(request, step_id):
 @require_POST
 def create_product_step(request, step_id):
     """Create a new product step."""
-    workflow_step = get_object_or_404(
-        WorkflowStep,
-        id=step_id,
-        step_type='product',
-        project__user=request.user
-    )
+    workflow_step = get_object_or_404(WorkflowStep, id=step_id, step_type='product')
+
+    # Verify user has access (either through project or standalone with user ownership)
+    if workflow_step.project:
+        if workflow_step.project.user != request.user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Product not found.'
+            }, status=404)
+    elif workflow_step.user and workflow_step.user != request.user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Product not found.'
+        }, status=404)
 
     try:
         product = workflow_step.product_details
@@ -583,13 +724,72 @@ def create_product_step(request, step_id):
 
 
 @login_required
+@require_POST
+def track_recent_item(request):
+    """Track recently accessed item."""
+    try:
+        data = json.loads(request.body)
+        item_type = data.get('item_type')
+        item_id = data.get('item_id')
+        item_title = data.get('item_title')
+        item_url = data.get('item_url')
+
+        if not all([item_type, item_id, item_title, item_url]):
+            return JsonResponse({
+                'success': False,
+                'error': 'All fields are required.'
+            }, status=400)
+
+        # Update or create recent item
+        recent_item, created = RecentItem.objects.update_or_create(
+            user=request.user,
+            item_type=item_type,
+            item_id=item_id,
+            defaults={
+                'item_title': item_title,
+                'item_url': item_url,
+            }
+        )
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Recent item tracked successfully!'
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON.'
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Error tracking recent item: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
 def product_step_chat(request, product_step_id):
     """Chat interface for AI-assisted product step."""
-    product_step = get_object_or_404(
-        ProductStep,
-        id=product_step_id,
-        product__workflow_step__project__user=request.user
-    )
+    product_step = get_object_or_404(ProductStep, id=product_step_id)
+
+    # Verify user has access (either through project or standalone with user ownership)
+    workflow_step = product_step.product.workflow_step
+    if workflow_step.project:
+        if workflow_step.project.user != request.user:
+            from django.http import Http404
+            raise Http404("Product step not found.")
+    elif workflow_step.user and workflow_step.user != request.user:
+        from django.http import Http404
+        raise Http404("Product step not found.")
+
+    # Build hierarchy breadcrumbs
+    hierarchy = []
+    current = workflow_step
+    while current:
+        hierarchy.insert(0, current)
+        current = current.parent_step
 
     # Serialize conversation history to JSON for JavaScript
     conversation_json = json.dumps(product_step.conversation_history or [])
@@ -597,8 +797,9 @@ def product_step_chat(request, product_step_id):
     context = {
         'product_step': product_step,
         'product': product_step.product,
-        'workflow_step': product_step.product.workflow_step,
-        'project': product_step.product.workflow_step.project,
+        'workflow_step': workflow_step,
+        'project': workflow_step.project,
+        'hierarchy': hierarchy,
         'conversation_json': conversation_json,
     }
     return render(request, 'product_management/product_step_chat.html', context)
@@ -608,11 +809,21 @@ def product_step_chat(request, product_step_id):
 @require_POST
 def send_product_step_message(request, product_step_id):
     """Send a message to the AI assistant for a product step with streaming support."""
-    product_step = get_object_or_404(
-        ProductStep,
-        id=product_step_id,
-        product__workflow_step__project__user=request.user
-    )
+    product_step = get_object_or_404(ProductStep, id=product_step_id)
+
+    # Verify user has access (either through project or standalone with user ownership)
+    workflow_step = product_step.product.workflow_step
+    if workflow_step.project:
+        if workflow_step.project.user != request.user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Product step not found.'
+            }, status=404)
+    elif workflow_step.user and workflow_step.user != request.user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Product step not found.'
+        }, status=404)
 
     try:
         data = json.loads(request.body)
@@ -659,11 +870,21 @@ def send_product_step_message(request, product_step_id):
 @login_required
 def get_product_step_conversation(request, product_step_id):
     """Get the conversation history for a product step."""
-    product_step = get_object_or_404(
-        ProductStep,
-        id=product_step_id,
-        product__workflow_step__project__user=request.user
-    )
+    product_step = get_object_or_404(ProductStep, id=product_step_id)
+
+    # Verify user has access (either through project or standalone with user ownership)
+    workflow_step = product_step.product.workflow_step
+    if workflow_step.project:
+        if workflow_step.project.user != request.user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Product step not found.'
+            }, status=404)
+    elif workflow_step.user and workflow_step.user != request.user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Product step not found.'
+        }, status=404)
 
     return JsonResponse({
         'success': True,
@@ -677,11 +898,21 @@ def get_product_step_conversation(request, product_step_id):
 @require_POST
 def generate_product_step_document(request, product_step_id):
     """Generate document from conversation history for a product step."""
-    product_step = get_object_or_404(
-        ProductStep,
-        id=product_step_id,
-        product__workflow_step__project__user=request.user
-    )
+    product_step = get_object_or_404(ProductStep, id=product_step_id)
+
+    # Verify user has access (either through project or standalone with user ownership)
+    workflow_step = product_step.product.workflow_step
+    if workflow_step.project:
+        if workflow_step.project.user != request.user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Product step not found.'
+            }, status=404)
+    elif workflow_step.user and workflow_step.user != request.user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Product step not found.'
+        }, status=404)
 
     try:
         ai_service = ProductDiscoveryAI(product_step)
@@ -727,11 +958,21 @@ def generate_product_step_document(request, product_step_id):
 @require_POST
 def complete_product_step(request, product_step_id):
     """Mark a product step as completed."""
-    product_step = get_object_or_404(
-        ProductStep,
-        id=product_step_id,
-        product__workflow_step__project__user=request.user
-    )
+    product_step = get_object_or_404(ProductStep, id=product_step_id)
+
+    # Verify user has access (either through project or standalone with user ownership)
+    workflow_step = product_step.product.workflow_step
+    if workflow_step.project:
+        if workflow_step.project.user != request.user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Product step not found.'
+            }, status=404)
+    elif workflow_step.user and workflow_step.user != request.user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Product step not found.'
+        }, status=404)
 
     product_step.is_completed = True
     product_step.save()
@@ -740,3 +981,122 @@ def complete_product_step(request, product_step_id):
         'success': True,
         'message': 'Step marked as completed!'
     })
+
+
+@login_required
+@require_POST
+def delete_project(request, project_id):
+    """Delete a project."""
+    project = get_object_or_404(Project, id=project_id, user=request.user)
+
+    try:
+        project_name = project.name
+
+        # Delete recent items for this project
+        RecentItem.objects.filter(user=request.user, item_type='project', item_id=project_id).delete()
+
+        # Delete recent items for all workflow steps in this project
+        workflow_step_ids = project.workflow_steps.values_list('id', flat=True)
+        RecentItem.objects.filter(
+            user=request.user,
+            item_type__in=['product', 'feature', 'workflow'],
+            item_id__in=workflow_step_ids
+        ).delete()
+
+        project.delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Project "{project_name}" deleted successfully!'
+        })
+    except Exception as e:
+        logger.error(f"Error deleting project: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@require_POST
+def delete_workflow_step(request, step_id):
+    """Delete a workflow step."""
+    workflow_step = get_object_or_404(WorkflowStep, id=step_id)
+
+    # Verify user has access
+    if workflow_step.project:
+        if workflow_step.project.user != request.user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Workflow step not found.'
+            }, status=404)
+    elif workflow_step.user and workflow_step.user != request.user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Workflow step not found.'
+        }, status=404)
+
+    try:
+        step_title = workflow_step.title
+        step_type = workflow_step.get_step_type_display()
+        project = workflow_step.project
+
+        # Delete recent items for this workflow step (product, feature, or workflow)
+        RecentItem.objects.filter(
+            user=request.user,
+            item_type__in=['product', 'feature', 'workflow'],
+            item_id=step_id
+        ).delete()
+
+        workflow_step.delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'{step_type} "{step_title}" deleted successfully!',
+            'redirect_url': f'/product-management/project/{project.id}/' if project else '/product-management/'
+        })
+    except Exception as e:
+        logger.error(f"Error deleting workflow step: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@require_POST
+def delete_product_step(request, product_step_id):
+    """Delete a product step."""
+    product_step = get_object_or_404(ProductStep, id=product_step_id)
+
+    # Verify user has access
+    workflow_step = product_step.product.workflow_step
+    if workflow_step.project:
+        if workflow_step.project.user != request.user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Product step not found.'
+            }, status=404)
+    elif workflow_step.user and workflow_step.user != request.user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Product step not found.'
+        }, status=404)
+
+    try:
+        step_title = product_step.title
+        product_id = workflow_step.id
+
+        product_step.delete()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Product step "{step_title}" deleted successfully!',
+            'redirect_url': f'/product-management/product/{product_id}/steps/'
+        })
+    except Exception as e:
+        logger.error(f"Error deleting product step: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)

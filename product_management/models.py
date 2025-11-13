@@ -38,10 +38,14 @@ class WorkflowStep(models.Model):
         ('feature', 'Feature'),
     ]
 
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='workflow_steps')
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='workflow_steps', null=True, blank=True)
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='workflow_steps', null=True, blank=True)
     step_type = models.CharField(max_length=20, choices=STEP_CHOICES)
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
+
+    # Reference ID for Jira-like ticket numbering (e.g., ABC-0001)
+    reference_id = models.CharField(max_length=20, unique=True, blank=True, null=True)
 
     # Parent-child relationship for workflow hierarchy
     parent_step = models.ForeignKey(
@@ -66,7 +70,81 @@ class WorkflowStep(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
-        return f"{self.get_step_type_display()} - {self.title}"
+        ref_id = f"[{self.reference_id}] " if self.reference_id else ""
+        return f"{ref_id}{self.get_step_type_display()} - {self.title}"
+
+    def get_root_vision(self):
+        """Traverse up the hierarchy to find the root Vision."""
+        current = self
+        while current.parent_step:
+            current = current.parent_step
+
+        # Return the Vision if found, else return self
+        if current.step_type == 'vision':
+            return current
+        return None
+
+    def generate_reference_prefix(self):
+        """Generate a three-letter prefix from the vision title."""
+        vision = self.get_root_vision()
+        if not vision:
+            # If no vision, use the item's own title
+            title = self.title
+        else:
+            title = vision.title
+
+        # Remove common words and extract meaningful parts
+        words = title.upper().split()
+        meaningful_words = [w for w in words if len(w) > 2 and w not in ['THE', 'AND', 'FOR', 'WITH']]
+
+        if not meaningful_words:
+            meaningful_words = words
+
+        # Generate 3-letter code
+        if len(meaningful_words) >= 3:
+            # Take first letter of first 3 words
+            prefix = ''.join([w[0] for w in meaningful_words[:3]])
+        elif len(meaningful_words) == 2:
+            # Take first letter of first word and first 2 letters of second
+            prefix = meaningful_words[0][0] + meaningful_words[1][:2]
+        elif len(meaningful_words) == 1:
+            # Take first 3 letters of the word
+            prefix = meaningful_words[0][:3]
+        else:
+            # Fallback to generic prefix
+            prefix = 'WRK'
+
+        return prefix[:3].upper()
+
+    def generate_reference_id(self):
+        """Generate a unique reference ID like ABC-0001."""
+        if self.reference_id:
+            return self.reference_id
+
+        prefix = self.generate_reference_prefix()
+
+        # Find the highest number used with this prefix
+        existing_refs = WorkflowStep.objects.filter(
+            reference_id__startswith=f"{prefix}-"
+        ).values_list('reference_id', flat=True)
+
+        numbers = []
+        for ref in existing_refs:
+            try:
+                num = int(ref.split('-')[1])
+                numbers.append(num)
+            except (IndexError, ValueError):
+                continue
+
+        next_number = max(numbers) + 1 if numbers else 1
+
+        return f"{prefix}-{next_number:04d}"
+
+    def save(self, *args, **kwargs):
+        """Override save to auto-generate reference_id."""
+        if not self.reference_id:
+            self.reference_id = self.generate_reference_id()
+        super().save(*args, **kwargs)
 
     def add_message(self, role, content):
         """Add a message to the conversation history."""
@@ -292,3 +370,114 @@ class ProductStep(models.Model):
             models.Index(fields=['product', 'step_type']),
             models.Index(fields=['product', 'order']),
         ]
+
+
+class FeatureStep(models.Model):
+    """Individual steps within a Feature's development lifecycle."""
+
+    STEP_TYPE_CHOICES = [
+        # FEATURE-SPECIFIC STEPS
+        ('requirements', 'Requirements & Specifications'),
+        ('user_story', 'User Story Definition'),
+        ('acceptance_criteria', 'Acceptance Criteria'),
+        ('technical_design', 'Technical Design'),
+        ('implementation', 'Implementation'),
+        ('testing', 'Testing & QA'),
+        ('code_review', 'Code Review'),
+        ('documentation', 'Documentation'),
+        ('deployment', 'Deployment'),
+        ('validation', 'User Validation'),
+    ]
+
+    LAYER_CHOICES = [
+        ('planning', 'Planning Layer'),
+        ('development', 'Development Layer'),
+        ('delivery', 'Delivery Layer'),
+    ]
+
+    feature = models.ForeignKey(
+        Feature,
+        on_delete=models.CASCADE,
+        related_name='feature_steps'
+    )
+    step_type = models.CharField(max_length=50, choices=STEP_TYPE_CHOICES)
+    layer = models.CharField(max_length=20, choices=LAYER_CHOICES)
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    order = models.PositiveIntegerField(default=0)
+
+    # AI conversation history (stored as JSON)
+    conversation_history = models.JSONField(default=list, blank=True)
+
+    # Document content generated from the conversation
+    document_content = models.TextField(blank=True)
+    document_generated_at = models.DateTimeField(null=True, blank=True)
+
+    # Status
+    is_completed = models.BooleanField(default=False)
+
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.get_step_type_display()} - {self.title}"
+
+    def add_message(self, role, content):
+        """Add a message to the conversation history."""
+        if not isinstance(self.conversation_history, list):
+            self.conversation_history = []
+
+        self.conversation_history.append({
+            'role': role,
+            'content': content,
+            'timestamp': None
+        })
+        self.save()
+
+    def get_conversation_context(self):
+        """Get formatted conversation history for OpenAI API."""
+        if not isinstance(self.conversation_history, list):
+            return []
+
+        return [
+            {'role': msg['role'], 'content': msg['content']}
+            for msg in self.conversation_history
+        ]
+
+    class Meta:
+        verbose_name = "Feature Step"
+        verbose_name_plural = "Feature Steps"
+        ordering = ['feature', 'order', 'created_at']
+        indexes = [
+            models.Index(fields=['feature', 'step_type']),
+            models.Index(fields=['feature', 'order']),
+        ]
+
+
+class RecentItem(models.Model):
+    """Track recently accessed items for quick navigation."""
+    ITEM_TYPE_CHOICES = [
+        ('product', 'Product'),
+        ('feature', 'Feature'),
+        ('project', 'Project'),
+        ('workflow', 'Workflow Step'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='recent_items')
+    item_type = models.CharField(max_length=20, choices=ITEM_TYPE_CHOICES)
+    item_id = models.PositiveIntegerField()
+    item_title = models.CharField(max_length=255)
+    item_url = models.CharField(max_length=500)
+    accessed_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"{self.user.username} - {self.item_type}: {self.item_title}"
+
+    class Meta:
+        verbose_name = "Recent Item"
+        verbose_name_plural = "Recent Items"
+        ordering = ['-accessed_at']
+        indexes = [
+            models.Index(fields=['user', '-accessed_at']),
+        ]
+        unique_together = ['user', 'item_type', 'item_id']

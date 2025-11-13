@@ -1,6 +1,6 @@
 {% extends 'product_management/base.html' %}
 
-{% block title %}Product Management - Projects{% endblock %}
+{% block title %}PM Dashboard - Projects{% endblock %}
 
 {% block content %}
 <div class="row mb-4">
@@ -8,13 +8,42 @@
         <div class="d-flex justify-content-between align-items-center">
             <div>
                 <h1 class="section-title mb-2">
-                    <i class="fas fa-lightbulb me-2"></i>Product Discovery
+                    <i class="fas fa-tachometer-alt me-2"></i>PM Dashboard
                 </h1>
                 <p class="text-muted">AI-powered product research and discovery workflow</p>
             </div>
-            <button class="btn btn-creative" data-bs-toggle="modal" data-bs-target="#createProjectModal">
-                <i class="fas fa-plus me-2"></i>New Project
-            </button>
+            <div class="d-flex gap-2">
+                <a href="{% url 'product_management:hierarchy' %}" class="btn btn-creative-outline">
+                    <i class="fas fa-sitemap me-2"></i>Product Hierarchy
+                </a>
+                <div class="btn-group">
+                    <button class="btn btn-creative dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        <i class="fas fa-plus me-2"></i>Create
+                    </button>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#createProjectModal">
+                            <i class="fas fa-map-marked-alt me-2"></i>Roadmap
+                        </a></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><h6 class="dropdown-header">Workflow Steps</h6></li>
+                        <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#createWorkflowModal" data-step-type="vision">
+                            <i class="fas fa-eye me-2"></i>Vision
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#createWorkflowModal" data-step-type="initiative">
+                            <i class="fas fa-bullseye me-2"></i>Initiative
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#createWorkflowModal" data-step-type="portfolio">
+                            <i class="fas fa-briefcase me-2"></i>Portfolio
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#createWorkflowModal" data-step-type="product">
+                            <i class="fas fa-box me-2"></i>Product
+                        </a></li>
+                        <li><a class="dropdown-item" href="#" data-bs-toggle="modal" data-bs-target="#createWorkflowModal" data-step-type="feature">
+                            <i class="fas fa-star me-2"></i>Feature
+                        </a></li>
+                    </ul>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -27,61 +56,83 @@
 </div>
 {% endif %}
 
-<div class="row">
-    {% if projects %}
-        {% for project in projects %}
-        <div class="col-md-6 col-lg-4 mb-4">
-            <div class="card h-100">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <a href="{% url 'product_management:project_detail' project.id %}" class="text-decoration-none text-dark">
-                            {{ project.name }}
-                        </a>
-                    </h5>
-                    <p class="card-text text-muted small">{{ project.description|truncatewords:20 }}</p>
+<!-- Recent Items Section -->
+{% if recent_items %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card bg-light">
+            <div class="card-body py-3">
+                <h6 class="mb-3">
+                    <i class="fas fa-clock me-2"></i>Recently Accessed
+                </h6>
+                <div class="d-flex flex-wrap gap-2">
+                    {% for item in recent_items %}
+                    <a href="{{ item.item_url }}" class="btn btn-sm btn-outline-secondary" data-recent-item="{{ item.item_type }}" data-recent-id="{{ item.item_id }}">
+                        {% if item.item_type == 'product' %}
+                            <i class="fas fa-box me-1"></i>
+                        {% elif item.item_type == 'feature' %}
+                            <i class="fas fa-star me-1"></i>
+                        {% elif item.item_type == 'project' %}
+                            <i class="fas fa-folder me-1"></i>
+                        {% else %}
+                            <i class="fas fa-circle me-1"></i>
+                        {% endif %}
+                        {{ item.item_title }}
+                        <small class="text-muted ms-1">({{ item.get_item_type_display }})</small>
+                    </a>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endif %}
 
-                    {% if project.github_repository %}
-                    <div class="mb-3">
-                        <span class="badge bg-secondary">
-                            <i class="fab fa-github me-1"></i>{{ project.github_repository.full_name }}
-                        </span>
+<!-- Quick Navigation Section -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h6 class="mb-3">
+                    <i class="fas fa-compass me-2"></i>Quick Navigation
+                </h6>
+                <div class="row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">
+                            <i class="fas fa-box text-info me-2"></i>Go to Product
+                        </label>
+                        <select class="form-select" id="productNavigator">
+                            <option value="">-- Select a Product --</option>
+                            {% for product in products %}
+                            <option value="{{ product.workflow_step.id }}" data-url="{% url 'product_management:product_steps' product.workflow_step.id %}" data-title="{{ product.workflow_step.title }}">
+                                {% if product.workflow_step.reference_id %}[{{ product.workflow_step.reference_id }}] {% endif %}{{ product.workflow_step.title }}
+                                {% if product.workflow_step.project %}
+                                    ({{ product.workflow_step.project.name }})
+                                {% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
                     </div>
-                    {% endif %}
-
-                    <div class="d-flex gap-2 mb-3">
-                        {% with project.workflow_steps.all as steps %}
-                        <small class="text-muted">
-                            <i class="fas fa-tasks me-1"></i>{{ steps.count }} step{{ steps.count|pluralize }}
-                        </small>
-                        {% endwith %}
-                    </div>
-
-                    <div class="d-flex justify-content-between align-items-center">
-                        <small class="text-muted">
-                            {{ project.created_at|date:"M d, Y" }}
-                        </small>
-                        <a href="{% url 'product_management:project_detail' project.id %}" class="btn btn-sm btn-creative-outline">
-                            Open <i class="fas fa-arrow-right ms-1"></i>
-                        </a>
+                    <div class="col-md-6">
+                        <label class="form-label fw-bold">
+                            <i class="fas fa-star text-warning me-2"></i>Go to Feature
+                        </label>
+                        <select class="form-select" id="featureNavigator">
+                            <option value="">-- Select a Feature --</option>
+                            {% for feature in features %}
+                            <option value="{{ feature.workflow_step.id }}" data-url="{% url 'product_management:workflow_chat' feature.workflow_step.id %}" data-title="{{ feature.workflow_step.title }}">
+                                {% if feature.workflow_step.reference_id %}[{{ feature.workflow_step.reference_id }}] {% endif %}{{ feature.workflow_step.title }}
+                                {% if feature.workflow_step.parent_step %}
+                                    ({{ feature.workflow_step.parent_step.title }})
+                                {% endif %}
+                            </option>
+                            {% endfor %}
+                        </select>
                     </div>
                 </div>
             </div>
         </div>
-        {% endfor %}
-    {% else %}
-        <div class="col-12">
-            <div class="card text-center py-5">
-                <div class="card-body">
-                    <i class="fas fa-folder-open fa-4x text-muted mb-3"></i>
-                    <h4>No Projects Yet</h4>
-                    <p class="text-muted">Create your first product discovery project to get started!</p>
-                    <button class="btn btn-creative" data-bs-toggle="modal" data-bs-target="#createProjectModal">
-                        <i class="fas fa-plus me-2"></i>Create Project
-                    </button>
-                </div>
-            </div>
-        </div>
-    {% endif %}
+    </div>
 </div>
 
 <!-- Create Project Modal -->
@@ -89,18 +140,18 @@
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Create New Project</h5>
+                <h5 class="modal-title">Create New Roadmap</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
                 <form id="createProjectForm">
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Project Name *</label>
-                        <input type="text" class="form-control" id="projectName" required>
+                        <label class="form-label fw-bold">Roadmap Name *</label>
+                        <input type="text" class="form-control" id="projectName" required placeholder="e.g., Mobile App 2025">
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Description</label>
-                        <textarea class="form-control" id="projectDescription" rows="3"></textarea>
+                        <textarea class="form-control" id="projectDescription" rows="3" placeholder="Brief description of your roadmap..."></textarea>
                     </div>
 
                     {% if has_github %}
@@ -128,7 +179,61 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-creative" id="createProjectBtn">
-                    <i class="fas fa-plus me-1"></i>Create Project
+                    <i class="fas fa-plus me-1"></i>Create Roadmap
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Create Workflow Step Modal -->
+<div class="modal fade" id="createWorkflowModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Create New <span id="workflowStepTypeLabel">Workflow Step</span></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createWorkflowForm">
+                    <input type="hidden" id="workflowStepType" value="">
+
+                    <div class="mb-3" id="productSelectGroup" style="display: none;">
+                        <label class="form-label fw-bold">Product *</label>
+                        <select class="form-select" id="workflowProductSelect">
+                            <option value="">-- Select Product --</option>
+                            {% for product in products %}
+                            <option value="{{ product.workflow_step.id }}">{{ product.workflow_step.title }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">Features must be associated with a product</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Roadmap (Optional)</label>
+                        <select class="form-select" id="workflowProjectSelect">
+                            <option value="">-- No Roadmap (Standalone) --</option>
+                            {% for project in projects %}
+                            <option value="{{ project.id }}">{{ project.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted" id="roadmapHelp">Assign to a roadmap to visualize in the roadmap view</small>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Title *</label>
+                        <input type="text" class="form-control" id="workflowTitle" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Description</label>
+                        <textarea class="form-control" id="workflowDescription" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-creative" id="createWorkflowBtn">
+                    <i class="fas fa-plus me-1"></i>Create
                 </button>
             </div>
         </div>
@@ -178,6 +283,132 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const hasGithub = {{ has_github|yesno:"true,false" }};
+
+    // Navigation dropdowns - Go to Product
+    document.getElementById('productNavigator').addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        const url = selectedOption.getAttribute('data-url');
+        const title = selectedOption.getAttribute('data-title');
+        const id = this.value;
+
+        if (url && id && title) {
+            // Track recent item
+            trackRecentItem('product', id, title, url);
+            // Navigate
+            window.location.href = url;
+        }
+    });
+
+    // Navigation dropdowns - Go to Feature
+    document.getElementById('featureNavigator').addEventListener('change', function() {
+        const selectedOption = this.options[this.selectedIndex];
+        const url = selectedOption.getAttribute('data-url');
+        const title = selectedOption.getAttribute('data-title');
+        const id = this.value;
+
+        if (url && id && title) {
+            // Track recent item
+            trackRecentItem('feature', id, title, url);
+            // Navigate
+            window.location.href = url;
+        }
+    });
+
+    // Function to track recent items
+    function trackRecentItem(itemType, itemId, itemTitle, itemUrl) {
+        fetch('{% url "product_management:track_recent_item" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                item_type: itemType,
+                item_id: itemId,
+                item_title: itemTitle,
+                item_url: itemUrl
+            })
+        }).catch(error => {
+            console.error('Error tracking recent item:', error);
+        });
+    }
+
+    // Handle workflow step type selection
+    document.querySelectorAll('[data-step-type]').forEach(function(item) {
+        item.addEventListener('click', function(e) {
+            e.preventDefault();
+            const stepType = this.getAttribute('data-step-type');
+            document.getElementById('workflowStepType').value = stepType;
+            document.getElementById('workflowStepTypeLabel').textContent = stepType.charAt(0).toUpperCase() + stepType.slice(1);
+
+            // Show product selector only for features
+            const productSelectGroup = document.getElementById('productSelectGroup');
+            if (stepType === 'feature') {
+                productSelectGroup.style.display = '';
+            } else {
+                productSelectGroup.style.display = 'none';
+            }
+        });
+    });
+
+    // Create workflow step
+    document.getElementById('createWorkflowBtn').addEventListener('click', function() {
+        const projectId = document.getElementById('workflowProjectSelect').value || null;
+        const stepType = document.getElementById('workflowStepType').value;
+        const title = document.getElementById('workflowTitle').value.trim();
+        const description = document.getElementById('workflowDescription').value.trim();
+        const productStepId = document.getElementById('workflowProductSelect').value || null;
+
+        // Validate feature requires product
+        if (stepType === 'feature' && !productStepId) {
+            alert('Please select a product for this feature');
+            return;
+        }
+
+        if (!title) {
+            alert('Please enter a title');
+            return;
+        }
+
+        this.disabled = true;
+        this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating...';
+
+        // Use appropriate endpoint based on whether project is selected
+        const createUrl = projectId
+            ? `/product-management/project/${projectId}/step/create/`
+            : '/product-management/workflow/create/';
+
+        fetch(createUrl, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            body: JSON.stringify({
+                step_type: stepType,
+                title: title,
+                description: description,
+                parent_step_id: productStepId,  // For features, use product as parent
+                project_id: projectId
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.href = `/product-management/workflow/${data.step_id}/`;
+            } else {
+                alert('Error: ' + data.error);
+                this.disabled = false;
+                this.innerHTML = '<i class="fas fa-plus me-1"></i>Create';
+            }
+        })
+        .catch(error => {
+            alert('Error creating workflow step: ' + error);
+            this.disabled = false;
+            this.innerHTML = '<i class="fas fa-plus me-1"></i>Create';
+        });
+    });
+
 
     // Load repositories when modal opens
     if (hasGithub) {

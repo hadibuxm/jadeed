@@ -1,15 +1,35 @@
 {% extends 'product_management/base.html' %}
 
-{% block title %}{{ product.workflow_step.title }} - Product Steps{% endblock %}
+{% block title %}{{ product.workflow_step.title }}{% endblock %}
 
 {% block content %}
 <div class="row mb-4">
     <div class="col-12">
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="{% url 'product_management:index' %}">Projects</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'product_management:hierarchy' %}">Roadmap</a></li>
+                {% if project %}
                 <li class="breadcrumb-item"><a href="{% url 'product_management:project_detail' project.id %}">{{ project.name }}</a></li>
-                <li class="breadcrumb-item active">{{ product.workflow_step.title }} - Steps</li>
+                {% endif %}
+                {% for item in hierarchy %}
+                    {% if forloop.last %}
+                        <li class="breadcrumb-item active" aria-current="page">
+                            <span class="badge badge-{{ item.step_type }} me-1">{{ item.get_step_type_display }}</span>
+                            {{ item.title }}
+                        </li>
+                    {% else %}
+                        <li class="breadcrumb-item">
+                            <span class="badge badge-{{ item.step_type }} me-1">{{ item.get_step_type_display }}</span>
+                            {% if item.step_type == 'product' %}
+                                <a href="{% url 'product_management:product_steps' item.id %}">{{ item.title }}</a>
+                            {% elif item.step_type == 'feature' %}
+                                <a href="{% url 'product_management:workflow_chat' item.id %}">{{ item.title }}</a>
+                            {% else %}
+                                <a href="{% url 'product_management:workflow_chat' item.id %}">{{ item.title }}</a>
+                            {% endif %}
+                        </li>
+                    {% endif %}
+                {% endfor %}
             </ol>
         </nav>
     </div>
@@ -19,8 +39,23 @@
     <div class="col-12">
         <div class="card card-gradient mb-4">
             <div class="card-body">
-                <h2 class="mb-2">{{ product.workflow_step.title }}</h2>
-                <p class="mb-0 opacity-75">Product Development Lifecycle: Strategic → Tactical → Release</p>
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <h1 class="mb-2">
+                            {% if product.workflow_step.reference_id %}<span class="badge bg-secondary me-2">{{ product.workflow_step.reference_id }}</span>{% endif %}
+                            <span class="badge badge-product me-2">Product</span>
+                            {{ product.workflow_step.title }}
+                        </h1>
+                        <p class="mb-0 opacity-75">Product Development Lifecycle: Strategic → Tactical → Release</p>
+                    </div>
+                    <div>
+                        <button class="btn btn-danger btn-sm delete-product-btn"
+                                data-product-id="{{ workflow_step.id }}"
+                                data-product-title="{{ product.workflow_step.title }}">
+                            <i class="fas fa-trash me-1"></i>Delete Product
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -63,10 +98,15 @@
             <div class="card-body">
                 <h6 class="mb-2">{{ step.title }}</h6>
                 <small class="text-muted">{{ step.description|truncatewords:15 }}</small>
-                <div class="mt-3">
+                <div class="mt-3 d-flex gap-2">
                     <a href="{% url 'product_management:product_step_chat' step.id %}" class="btn btn-sm btn-creative-outline">
                         Open <i class="fas fa-arrow-right ms-1"></i>
                     </a>
+                    <button class="btn btn-sm btn-outline-danger delete-product-step-btn"
+                            data-step-id="{{ step.id }}"
+                            data-step-title="{{ step.title }}">
+                        <i class="fas fa-trash"></i>
+                    </button>
                 </div>
             </div>
         </div>
@@ -116,10 +156,15 @@
             <div class="card-body">
                 <h6 class="mb-2">{{ step.title }}</h6>
                 <small class="text-muted">{{ step.description|truncatewords:15 }}</small>
-                <div class="mt-3">
+                <div class="mt-3 d-flex gap-2">
                     <a href="{% url 'product_management:product_step_chat' step.id %}" class="btn btn-sm btn-creative-outline">
                         Open <i class="fas fa-arrow-right ms-1"></i>
                     </a>
+                    <button class="btn btn-sm btn-outline-danger delete-product-step-btn"
+                            data-step-id="{{ step.id }}"
+                            data-step-title="{{ step.title }}">
+                        <i class="fas fa-trash"></i>
+                    </button>
                 </div>
             </div>
         </div>
@@ -169,10 +214,15 @@
             <div class="card-body">
                 <h6 class="mb-2">{{ step.title }}</h6>
                 <small class="text-muted">{{ step.description|truncatewords:15 }}</small>
-                <div class="mt-3">
+                <div class="mt-3 d-flex gap-2">
                     <a href="{% url 'product_management:product_step_chat' step.id %}" class="btn btn-sm btn-creative-outline">
                         Open <i class="fas fa-arrow-right ms-1"></i>
                     </a>
+                    <button class="btn btn-sm btn-outline-danger delete-product-step-btn"
+                            data-step-id="{{ step.id }}"
+                            data-step-title="{{ step.title }}">
+                        <i class="fas fa-trash"></i>
+                    </button>
                 </div>
             </div>
         </div>
@@ -320,6 +370,66 @@ function addStep() {
         alert('Error creating step: ' + error);
     });
 }
+
+// Delete product
+document.querySelector('.delete-product-btn')?.addEventListener('click', function() {
+    const productId = this.getAttribute('data-product-id');
+    const productTitle = this.getAttribute('data-product-title');
+
+    if (confirm(`Are you sure you want to delete the product "${productTitle}"? This will delete all product steps and cannot be undone.`)) {
+        fetch(`/product-management/workflow/${productId}/delete/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                if (data.redirect_url) {
+                    window.location.href = data.redirect_url;
+                } else {
+                    window.location.href = '/product-management/';
+                }
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('Error deleting product: ' + error);
+        });
+    }
+});
+
+// Delete product step
+document.querySelectorAll('.delete-product-step-btn').forEach(button => {
+    button.addEventListener('click', function() {
+        const stepId = this.getAttribute('data-step-id');
+        const stepTitle = this.getAttribute('data-step-title');
+
+        if (confirm(`Are you sure you want to delete "${stepTitle}"? This action cannot be undone.`)) {
+            fetch(`/product-management/product-step/${stepId}/delete/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                alert('Error deleting product step: ' + error);
+            });
+        }
+    });
+});
 
 function getCookie(name) {
     let cookieValue = null;

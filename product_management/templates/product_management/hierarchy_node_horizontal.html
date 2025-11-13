@@ -1,0 +1,69 @@
+<div class="tree-column">
+    <div class="tree-item">
+        {% if node.step_type == 'product' %}
+            <div class="tree-node tree-node-{{ node.step_type }}" onclick="window.location.href='{% url 'product_management:product_steps' node.id %}'">
+                <span class="workflow-badge badge-{{ node.step_type }}">
+                    <i class="fas fa-box me-1"></i>{{ node.get_step_type_display }}
+                </span>
+                <div class="mt-2">
+                    <strong>{{ node.title }}</strong>
+                </div>
+                {% if node.description %}
+                <div class="text-muted small mt-1">
+                    {{ node.description|truncatewords:12 }}
+                </div>
+                {% endif %}
+                {% if node.is_completed %}
+                    <div class="mt-2">
+                        <i class="fas fa-check-circle text-success"></i>
+                    </div>
+                {% endif %}
+                <div class="text-muted small mt-2">
+                    <i class="fas fa-arrow-right me-1"></i>Has product steps
+                </div>
+            </div>
+        {% else %}
+            <div class="tree-node tree-node-{{ node.step_type }}" onclick="window.location.href='{% url 'product_management:workflow_chat' node.id %}'">
+                <span class="workflow-badge badge-{{ node.step_type }}">
+                    {% if node.step_type == 'vision' %}
+                        <i class="fas fa-eye me-1"></i>
+                    {% elif node.step_type == 'initiative' %}
+                        <i class="fas fa-bullseye me-1"></i>
+                    {% elif node.step_type == 'portfolio' %}
+                        <i class="fas fa-briefcase me-1"></i>
+                    {% elif node.step_type == 'feature' %}
+                        <i class="fas fa-star me-1"></i>
+                    {% endif %}
+                    {{ node.get_step_type_display }}
+                </span>
+                <div class="mt-2">
+                    <strong>{{ node.title }}</strong>
+                </div>
+                {% if node.description %}
+                <div class="text-muted small mt-1">
+                    {{ node.description|truncatewords:12 }}
+                </div>
+                {% endif %}
+                {% if node.is_completed %}
+                    <div class="mt-2">
+                        <i class="fas fa-check-circle text-success"></i>
+                    </div>
+                {% endif %}
+            </div>
+        {% endif %}
+
+        {% if node.child_steps.exists %}
+            <div class="tree-arrow">
+                <i class="fas fa-arrow-right"></i>
+            </div>
+        {% endif %}
+    </div>
+
+    {% if node.child_steps.exists %}
+        <div class="tree-children-horizontal">
+            {% for child in node.child_steps.all %}
+                {% include 'product_management/hierarchy_node_horizontal.html' with node=child %}
+            {% endfor %}
+        </div>
+    {% endif %}
+</div>

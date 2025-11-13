@@ -56,10 +56,23 @@
     <div class="col-12">
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="{% url 'product_management:index' %}">Projects</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'product_management:hierarchy' %}">Roadmap</a></li>
+                {% if project %}
                 <li class="breadcrumb-item"><a href="{% url 'product_management:project_detail' project.id %}">{{ project.name }}</a></li>
-                <li class="breadcrumb-item"><a href="{% url 'product_management:product_steps' workflow_step.id %}">{{ product.workflow_step.title }}</a></li>
-                <li class="breadcrumb-item active">{{ product_step.title }}</li>
+                {% endif %}
+                {% for item in hierarchy %}
+                    <li class="breadcrumb-item">
+                        <span class="badge badge-{{ item.step_type }} me-1">{{ item.get_step_type_display }}</span>
+                        {% if item.step_type == 'product' %}
+                            <a href="{% url 'product_management:product_steps' item.id %}">{{ item.title }}</a>
+                        {% elif item.step_type == 'feature' %}
+                            <a href="{% url 'product_management:workflow_chat' item.id %}">{{ item.title }}</a>
+                        {% else %}
+                            <a href="{% url 'product_management:workflow_chat' item.id %}">{{ item.title }}</a>
+                        {% endif %}
+                    </li>
+                {% endfor %}
+                <li class="breadcrumb-item active" aria-current="page">{{ product_step.title }}</li>
             </ol>
         </nav>
     </div>
