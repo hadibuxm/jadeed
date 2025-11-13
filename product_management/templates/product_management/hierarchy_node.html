@@ -1,0 +1,40 @@
+<li>
+    {% if node.step_type == 'product' %}
+        <div class="tree-node tree-node-{{ node.step_type }}" data-url="{% url 'product_management:product_steps' node.id %}">
+            <span class="workflow-badge badge-{{ node.step_type }}">
+                <i class="fas fa-box me-1"></i>{{ node.get_step_type_display }}
+            </span>
+            <strong>{{ node.title }}</strong>
+            {% if node.is_completed %}
+                <i class="fas fa-check-circle text-success ms-2"></i>
+            {% endif %}
+        </div>
+    {% else %}
+        <div class="tree-node tree-node-{{ node.step_type }}" data-url="{% url 'product_management:workflow_chat' node.id %}">
+            <span class="workflow-badge badge-{{ node.step_type }}">
+                {% if node.step_type == 'vision' %}
+                    <i class="fas fa-eye me-1"></i>
+                {% elif node.step_type == 'initiative' %}
+                    <i class="fas fa-bullseye me-1"></i>
+                {% elif node.step_type == 'portfolio' %}
+                    <i class="fas fa-briefcase me-1"></i>
+                {% elif node.step_type == 'feature' %}
+                    <i class="fas fa-star me-1"></i>
+                {% endif %}
+                {{ node.get_step_type_display }}
+            </span>
+            <strong>{{ node.title }}</strong>
+            {% if node.is_completed %}
+                <i class="fas fa-check-circle text-success ms-2"></i>
+            {% endif %}
+        </div>
+    {% endif %}
+
+    {% if node.child_steps.exists %}
+        <ul>
+            {% for child in node.child_steps.all %}
+                {% include 'product_management/hierarchy_node.html' with node=child %}
+            {% endfor %}
+        </ul>
+    {% endif %}
+</li>

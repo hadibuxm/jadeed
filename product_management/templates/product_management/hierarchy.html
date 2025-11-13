@@ -1,0 +1,523 @@
+{% extends 'product_management/base.html' %}
+
+{% block title %}Roadmap - PM Dashboard{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Tree Container */
+    .tree-container {
+        padding: 3rem 2rem;
+        background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+        border-radius: 16px;
+        position: relative;
+        overflow-x: auto;
+    }
+
+    /* Tree Level */
+    .tree-level {
+        margin: 2rem 0;
+        position: relative;
+    }
+
+    .tree-level-title {
+        font-size: 0.875rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        color: #6c757d;
+        margin-bottom: 2rem;
+        text-align: center;
+    }
+
+    /* Nodes Container */
+    .tree-nodes {
+        display: flex;
+        justify-content: center;
+        gap: 3rem;
+        flex-wrap: wrap;
+        position: relative;
+    }
+
+    /* Individual Node */
+    .tree-node {
+        position: relative;
+        text-align: center;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .tree-node:hover .node-circle {
+        transform: scale(1.15);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    .tree-node:hover .node-label {
+        color: var(--creative-purple);
+    }
+
+    .node-circle {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 0 auto 1rem;
+        background: white;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        transition: all 0.3s ease;
+        position: relative;
+        z-index: 2;
+    }
+
+    .node-circle i {
+        font-size: 2rem;
+        color: white;
+    }
+
+    .node-circle.completed::after {
+        content: '\f058';
+        font-family: 'Font Awesome 6 Free';
+        font-weight: 900;
+        position: absolute;
+        top: -5px;
+        right: -5px;
+        background: #22c55e;
+        color: white;
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.875rem;
+        border: 3px solid white;
+    }
+
+    /* Node Colors */
+    .node-vision .node-circle { background: linear-gradient(135deg, #8B5CF6, #A78BFA); }
+    .node-initiative .node-circle { background: linear-gradient(135deg, #3B82F6, #60A5FA); }
+    .node-portfolio .node-circle { background: linear-gradient(135deg, #14B8A6, #2DD4BF); }
+    .node-product .node-circle { background: linear-gradient(135deg, #EC4899, #F472B6); }
+    .node-feature .node-circle { background: linear-gradient(135deg, #F59E0B, #FBBF24); }
+
+    .node-label {
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: #1f2937;
+        max-width: 150px;
+        margin: 0 auto;
+        word-wrap: break-word;
+        transition: color 0.3s ease;
+    }
+
+    .node-sublabel {
+        font-size: 0.75rem;
+        color: #9ca3af;
+        margin-top: 0.25rem;
+    }
+
+    /* Connecting Lines */
+    .connection-line {
+        position: absolute;
+        background: linear-gradient(to bottom, #dee2e6, #e5e7eb);
+        width: 2px;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 1;
+    }
+
+    .connection-vertical {
+        height: 40px;
+        top: 100%;
+    }
+
+    .connection-arrow {
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        color: #9ca3af;
+        font-size: 1.5rem;
+        z-index: 1;
+        animation: bounce 2s infinite;
+    }
+
+    @keyframes bounce {
+        0%, 100% { transform: translateX(-50%) translateY(0); }
+        50% { transform: translateX(-50%) translateY(5px); }
+    }
+
+    /* Level Connector */
+    .level-connector {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        margin: 2rem 0;
+        position: relative;
+    }
+
+    .level-connector::before {
+        content: '';
+        position: absolute;
+        width: 2px;
+        height: 100%;
+        background: linear-gradient(to bottom, #dee2e6, #e5e7eb);
+        left: 50%;
+        transform: translateX(-50%);
+    }
+
+    .level-connector-icon {
+        background: white;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 2px solid #e5e7eb;
+        color: #9ca3af;
+        font-size: 1.25rem;
+        position: relative;
+        z-index: 2;
+    }
+
+    .project-card {
+        margin-bottom: 2rem;
+        border-radius: 16px;
+        overflow: hidden;
+    }
+
+    .project-header {
+        background: var(--creative-gradient);
+        color: white;
+        padding: 1.5rem;
+    }
+
+    .collapse-toggle {
+        cursor: pointer;
+        user-select: none;
+    }
+
+    .collapse-toggle:hover {
+        opacity: 0.8;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1 class="section-title mb-2">
+                    <i class="fas fa-map-marked-alt me-2"></i>Roadmap
+                </h1>
+                <p class="text-muted">Visual roadmap of your product workflow from vision to features</p>
+            </div>
+            <a href="{% url 'product_management:index' %}" class="btn btn-creative-outline">
+                <i class="fas fa-arrow-left me-2"></i>Back to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Filter Section -->
+<div class="row mb-4">
+    <div class="col-md-6">
+        <label class="form-label fw-bold">
+            <i class="fas fa-filter me-2"></i>Select Roadmap
+        </label>
+        <select class="form-select" id="projectFilter">
+            <option value="">All Roadmaps</option>
+            {% for item in hierarchy_data %}
+            <option value="{{ item.project.id }}">{{ item.project.name }}</option>
+            {% endfor %}
+        </select>
+    </div>
+</div>
+
+<!-- No Selection Message -->
+<div class="card text-center py-5" id="noSelectionMessage">
+    <div class="card-body">
+        <i class="fas fa-map-marked-alt fa-4x text-muted mb-3"></i>
+        <h4>Select a Roadmap</h4>
+        <p class="text-muted">Choose a roadmap from the dropdown above to view its product workflow hierarchy.</p>
+    </div>
+</div>
+
+{% if hierarchy_data %}
+    {% for item in hierarchy_data %}
+    <div class="card project-card shadow" data-project-id="{{ item.project.id }}" style="display: none;">
+        <div class="project-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h3 class="mb-1">
+                        <i class="fas fa-folder me-2"></i>{{ item.project.name }}
+                    </h3>
+                    <p class="mb-0 opacity-75">{{ item.project.description|truncatewords:30 }}</p>
+                </div>
+                <a href="{% url 'product_management:project_detail' item.project.id %}" class="btn btn-light">
+                    <i class="fas fa-external-link-alt me-2"></i>Open
+                </a>
+            </div>
+        </div>
+        <div class="card-body">
+            {% if item.visions or item.initiatives or item.portfolios or item.products or item.features %}
+                <div class="tree-container">
+                    <!-- Vision Level -->
+                    {% if item.visions %}
+                    <div class="tree-level">
+                        <div class="tree-level-title">Vision</div>
+                        <div class="tree-nodes">
+                            {% for vision in item.visions %}
+                            <div class="tree-node node-vision" onclick="window.location.href='{% url 'product_management:workflow_chat' vision.id %}'">
+                                <div class="node-circle {% if vision.is_completed %}completed{% endif %}">
+                                    <i class="fas fa-eye"></i>
+                                </div>
+                                <div class="node-label">
+                                    {% if vision.reference_id %}<div class="badge bg-secondary mb-1">{{ vision.reference_id }}</div><br>{% endif %}
+                                    {{ vision.title }}
+                                </div>
+                                {% if vision.parent_step %}
+                                <div class="node-sublabel">← {{ vision.parent_step.title|truncatewords:2 }}</div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if item.visions and item.initiatives %}
+                    <div class="level-connector">
+                        <div class="level-connector-icon">
+                            <i class="fas fa-arrow-down"></i>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Initiative Level -->
+                    {% if item.initiatives %}
+                    <div class="tree-level">
+                        <div class="tree-level-title">Initiative</div>
+                        <div class="tree-nodes">
+                            {% for initiative in item.initiatives %}
+                            <div class="tree-node node-initiative" onclick="window.location.href='{% url 'product_management:workflow_chat' initiative.id %}'">
+                                <div class="node-circle {% if initiative.is_completed %}completed{% endif %}">
+                                    <i class="fas fa-bullseye"></i>
+                                </div>
+                                <div class="node-label">
+                                    {% if initiative.reference_id %}<div class="badge bg-secondary mb-1">{{ initiative.reference_id }}</div><br>{% endif %}
+                                    {{ initiative.title }}
+                                </div>
+                                {% if initiative.parent_step %}
+                                <div class="node-sublabel">← {{ initiative.parent_step.title|truncatewords:2 }}</div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if item.initiatives and item.portfolios %}
+                    <div class="level-connector">
+                        <div class="level-connector-icon">
+                            <i class="fas fa-arrow-down"></i>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Portfolio Level -->
+                    {% if item.portfolios %}
+                    <div class="tree-level">
+                        <div class="tree-level-title">Portfolio</div>
+                        <div class="tree-nodes">
+                            {% for portfolio in item.portfolios %}
+                            <div class="tree-node node-portfolio" onclick="window.location.href='{% url 'product_management:workflow_chat' portfolio.id %}'">
+                                <div class="node-circle {% if portfolio.is_completed %}completed{% endif %}">
+                                    <i class="fas fa-briefcase"></i>
+                                </div>
+                                <div class="node-label">
+                                    {% if portfolio.reference_id %}<div class="badge bg-secondary mb-1">{{ portfolio.reference_id }}</div><br>{% endif %}
+                                    {{ portfolio.title }}
+                                </div>
+                                {% if portfolio.parent_step %}
+                                <div class="node-sublabel">← {{ portfolio.parent_step.title|truncatewords:2 }}</div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if item.portfolios and item.products %}
+                    <div class="level-connector">
+                        <div class="level-connector-icon">
+                            <i class="fas fa-arrow-down"></i>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Product Level -->
+                    {% if item.products %}
+                    <div class="tree-level">
+                        <div class="tree-level-title">Product</div>
+                        <div class="tree-nodes">
+                            {% for product in item.products %}
+                            <div class="tree-node node-product" onclick="window.location.href='{% url 'product_management:product_steps' product.id %}'">
+                                <div class="node-circle {% if product.is_completed %}completed{% endif %}">
+                                    <i class="fas fa-box"></i>
+                                </div>
+                                <div class="node-label">
+                                    {% if product.reference_id %}<div class="badge bg-secondary mb-1">{{ product.reference_id }}</div><br>{% endif %}
+                                    {{ product.title }}
+                                </div>
+                                {% if product.parent_step %}
+                                <div class="node-sublabel">← {{ product.parent_step.title|truncatewords:2 }}</div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if item.products and item.features %}
+                    <div class="level-connector">
+                        <div class="level-connector-icon">
+                            <i class="fas fa-arrow-down"></i>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Feature Level -->
+                    {% if item.features %}
+                    <div class="tree-level">
+                        <div class="tree-level-title">Feature</div>
+                        <div class="tree-nodes">
+                            {% for feature in item.features %}
+                            <div class="tree-node node-feature" onclick="window.location.href='{% url 'product_management:workflow_chat' feature.id %}'">
+                                <div class="node-circle {% if feature.is_completed %}completed{% endif %}">
+                                    <i class="fas fa-star"></i>
+                                </div>
+                                <div class="node-label">
+                                    {% if feature.reference_id %}<div class="badge bg-secondary mb-1">{{ feature.reference_id }}</div><br>{% endif %}
+                                    {{ feature.title }}
+                                </div>
+                                {% if feature.parent_step %}
+                                <div class="node-sublabel">← {{ feature.parent_step.title|truncatewords:2 }}</div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            {% else %}
+                <div class="text-center text-muted py-4">
+                    <i class="fas fa-info-circle fa-2x mb-3"></i>
+                    <p>No workflow steps yet. Create your first step to build the hierarchy.</p>
+                    <a href="{% url 'product_management:project_detail' item.project.id %}" class="btn btn-creative">
+                        <i class="fas fa-plus me-2"></i>Add Workflow Step
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+    {% endfor %}
+{% else %}
+    <div class="card text-center py-5">
+        <div class="card-body">
+            <i class="fas fa-folder-open fa-4x text-muted mb-3"></i>
+            <h4>No Roadmaps Yet</h4>
+            <p class="text-muted">Create your first roadmap to start building your workflow hierarchy.</p>
+            <a href="{% url 'product_management:index' %}" class="btn btn-creative">
+                <i class="fas fa-plus me-2"></i>Create Roadmap
+            </a>
+        </div>
+    </div>
+{% endif %}
+
+<!-- Legend -->
+<div class="card mt-4">
+    <div class="card-body">
+        <h5 class="card-title mb-3">
+            <i class="fas fa-info-circle me-2"></i>Workflow Levels
+        </h5>
+        <div class="d-flex justify-content-center align-items-center gap-4 flex-wrap">
+            <div class="d-flex align-items-center gap-2">
+                <div style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #8B5CF6, #A78BFA); display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-eye" style="color: white;"></i>
+                </div>
+                <span class="fw-semibold">Vision</span>
+            </div>
+            <i class="fas fa-arrow-right text-muted"></i>
+            <div class="d-flex align-items-center gap-2">
+                <div style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #3B82F6, #60A5FA); display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-bullseye" style="color: white;"></i>
+                </div>
+                <span class="fw-semibold">Initiative</span>
+            </div>
+            <i class="fas fa-arrow-right text-muted"></i>
+            <div class="d-flex align-items-center gap-2">
+                <div style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #14B8A6, #2DD4BF); display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-briefcase" style="color: white;"></i>
+                </div>
+                <span class="fw-semibold">Portfolio</span>
+            </div>
+            <i class="fas fa-arrow-right text-muted"></i>
+            <div class="d-flex align-items-center gap-2">
+                <div style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #EC4899, #F472B6); display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-box" style="color: white;"></i>
+                </div>
+                <span class="fw-semibold">Product</span>
+            </div>
+            <i class="fas fa-arrow-right text-muted"></i>
+            <div class="d-flex align-items-center gap-2">
+                <div style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #F59E0B, #FBBF24); display: flex; align-items: center; justify-content: center;">
+                    <i class="fas fa-star" style="color: white;"></i>
+                </div>
+                <span class="fw-semibold">Feature</span>
+            </div>
+        </div>
+        <div class="text-center mt-3">
+            <small class="text-muted">
+                <i class="fas fa-check-circle text-success me-1"></i>
+                Completed items are marked with a green checkmark
+            </small>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Project filter functionality
+    const projectFilter = document.getElementById('projectFilter');
+    const noSelectionMessage = document.getElementById('noSelectionMessage');
+
+    projectFilter.addEventListener('change', function() {
+        const selectedProjectId = this.value;
+        const projectCards = document.querySelectorAll('.project-card');
+
+        if (selectedProjectId === '') {
+            // No project selected - show message and hide all cards
+            noSelectionMessage.style.display = '';
+            projectCards.forEach(card => {
+                card.style.display = 'none';
+            });
+        } else {
+            // Project selected - hide message and show selected card
+            noSelectionMessage.style.display = 'none';
+            projectCards.forEach(card => {
+                const cardProjectId = card.getAttribute('data-project-id');
+                if (cardProjectId === selectedProjectId) {
+                    card.style.display = '';
+                } else {
+                    card.style.display = 'none';
+                }
+            });
+        }
+    });
+});
+</script>
+{% endblock %}

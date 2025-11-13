@@ -1,13 +1,13 @@
 {% extends 'product_management/base.html' %}
 
-{% block title %}{{ project.name }} - Product Management{% endblock %}
+{% block title %}{{ project.name }} - Roadmap{% endblock %}
 
 {% block content %}
 <div class="row mb-4">
     <div class="col-12">
         <nav aria-label="breadcrumb">
             <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="{% url 'product_management:index' %}">Projects</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'product_management:hierarchy' %}">Roadmap</a></li>
                 <li class="breadcrumb-item active">{{ project.name }}</li>
             </ol>
         </nav>
@@ -18,13 +18,22 @@
     <div class="col-12">
         <div class="card card-gradient mb-4">
             <div class="card-body">
-                <h2 class="mb-2">{{ project.name }}</h2>
-                <p class="mb-3 opacity-75">{{ project.description }}</p>
-                {% if project.github_repository %}
-                <a href="{{ project.github_repository.html_url }}" target="_blank" class="btn btn-light btn-sm">
-                    <i class="fab fa-github me-1"></i>{{ project.github_repository.full_name }}
-                </a>
-                {% endif %}
+                <div class="d-flex justify-content-between align-items-start">
+                    <div class="flex-grow-1">
+                        <h2 class="mb-2">{{ project.name }}</h2>
+                        <p class="mb-3 opacity-75">{{ project.description }}</p>
+                        {% if project.github_repository %}
+                        <a href="{{ project.github_repository.html_url }}" target="_blank" class="btn btn-light btn-sm">
+                            <i class="fab fa-github me-1"></i>{{ project.github_repository.full_name }}
+                        </a>
+                        {% endif %}
+                    </div>
+                    <div>
+                        <button class="btn btn-danger btn-sm delete-project-btn" data-project-id="{{ project.id }}" data-project-name="{{ project.name }}">
+                            <i class="fas fa-trash me-1"></i>Delete Roadmap
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -56,17 +65,26 @@
                     <div class="mb-3 p-3 bg-light rounded">
                         <div class="d-flex justify-content-between align-items-start">
                             <div>
-                                <h6 class="mb-1">{{ step.title }}</h6>
+                                <h6 class="mb-1">
+                                    {% if step.reference_id %}<span class="badge bg-secondary me-2">{{ step.reference_id }}</span>{% endif %}
+                                    {{ step.title }}
+                                </h6>
                                 <small class="text-muted">{{ step.description|truncatewords:10 }}</small>
                             </div>
                             {% if step.is_completed %}
                             <span class="badge bg-success"><i class="fas fa-check"></i></span>
                             {% endif %}
                         </div>
-                        <div class="mt-2">
+                        <div class="mt-2 d-flex gap-2">
                             <a href="{% url 'product_management:workflow_chat' step.id %}" class="btn btn-sm btn-creative-outline">
                                 Open <i class="fas fa-arrow-right ms-1"></i>
                             </a>
+                            <button class="btn btn-sm btn-outline-danger delete-workflow-step-btn"
+                                    data-step-id="{{ step.id }}"
+                                    data-step-title="{{ step.title }}"
+                                    data-step-type="{{ step.get_step_type_display }}">
+                                <i class="fas fa-trash"></i>
+                            </button>
                         </div>
                     </div>
                     {% endfor %}
@@ -96,17 +114,26 @@
                     <div class="mb-3 p-3 bg-light rounded">
                         <div class="d-flex justify-content-between align-items-start">
                             <div>
-                                <h6 class="mb-1">{{ step.title }}</h6>
+                                <h6 class="mb-1">
+                                    {% if step.reference_id %}<span class="badge bg-secondary me-2">{{ step.reference_id }}</span>{% endif %}
+                                    {{ step.title }}
+                                </h6>
                                 <small class="text-muted">{{ step.description|truncatewords:10 }}</small>
                             </div>
                             {% if step.is_completed %}
                             <span class="badge bg-success"><i class="fas fa-check"></i></span>
                             {% endif %}
                         </div>
-                        <div class="mt-2">
+                        <div class="mt-2 d-flex gap-2">
                             <a href="{% url 'product_management:workflow_chat' step.id %}" class="btn btn-sm btn-creative-outline">
                                 Open <i class="fas fa-arrow-right ms-1"></i>
                             </a>
+                            <button class="btn btn-sm btn-outline-danger delete-workflow-step-btn"
+                                    data-step-id="{{ step.id }}"
+                                    data-step-title="{{ step.title }}"
+                                    data-step-type="{{ step.get_step_type_display }}">
+                                <i class="fas fa-trash"></i>
+                            </button>
                         </div>
                     </div>
                     {% endfor %}
@@ -136,17 +163,26 @@
                     <div class="mb-3 p-3 bg-light rounded">
                         <div class="d-flex justify-content-between align-items-start">
                             <div>
-                                <h6 class="mb-1">{{ step.title }}</h6>
+                                <h6 class="mb-1">
+                                    {% if step.reference_id %}<span class="badge bg-secondary me-2">{{ step.reference_id }}</span>{% endif %}
+                                    {{ step.title }}
+                                </h6>
                                 <small class="text-muted">{{ step.description|truncatewords:10 }}</small>
                             </div>
                             {% if step.is_completed %}
                             <span class="badge bg-success"><i class="fas fa-check"></i></span>
                             {% endif %}
                         </div>
-                        <div class="mt-2">
+                        <div class="mt-2 d-flex gap-2">
                             <a href="{% url 'product_management:workflow_chat' step.id %}" class="btn btn-sm btn-creative-outline">
                                 Open <i class="fas fa-arrow-right ms-1"></i>
                             </a>
+                            <button class="btn btn-sm btn-outline-danger delete-workflow-step-btn"
+                                    data-step-id="{{ step.id }}"
+                                    data-step-title="{{ step.title }}"
+                                    data-step-type="{{ step.get_step_type_display }}">
+                                <i class="fas fa-trash"></i>
+                            </button>
                         </div>
                     </div>
                     {% endfor %}
@@ -176,7 +212,10 @@
                     <div class="mb-3 p-3 bg-light rounded">
                         <div class="d-flex justify-content-between align-items-start">
                             <div>
-                                <h6 class="mb-1">{{ step.title }}</h6>
+                                <h6 class="mb-1">
+                                    {% if step.reference_id %}<span class="badge bg-secondary me-2">{{ step.reference_id }}</span>{% endif %}
+                                    {{ step.title }}
+                                </h6>
                                 <small class="text-muted">{{ step.description|truncatewords:10 }}</small>
                             </div>
                             {% if step.is_completed %}
@@ -219,17 +258,26 @@
                     <div class="mb-3 p-3 bg-light rounded">
                         <div class="d-flex justify-content-between align-items-start">
                             <div>
-                                <h6 class="mb-1">{{ step.title }}</h6>
+                                <h6 class="mb-1">
+                                    {% if step.reference_id %}<span class="badge bg-secondary me-2">{{ step.reference_id }}</span>{% endif %}
+                                    {{ step.title }}
+                                </h6>
                                 <small class="text-muted">{{ step.description|truncatewords:10 }}</small>
                             </div>
                             {% if step.is_completed %}
                             <span class="badge bg-success"><i class="fas fa-check"></i></span>
                             {% endif %}
                         </div>
-                        <div class="mt-2">
+                        <div class="mt-2 d-flex gap-2">
                             <a href="{% url 'product_management:workflow_chat' step.id %}" class="btn btn-sm btn-creative-outline">
                                 Open <i class="fas fa-arrow-right ms-1"></i>
                             </a>
+                            <button class="btn btn-sm btn-outline-danger delete-workflow-step-btn"
+                                    data-step-id="{{ step.id }}"
+                                    data-step-title="{{ step.title }}"
+                                    data-step-type="{{ step.get_step_type_display }}">
+                                <i class="fas fa-trash"></i>
+                            </button>
                         </div>
                     </div>
                     {% endfor %}
@@ -332,6 +380,63 @@ document.getElementById('createStepBtn').addEventListener('click', function() {
         alert('Error creating step: ' + error);
         this.disabled = false;
         this.innerHTML = '<i class="fas fa-plus me-1"></i>Create Step';
+    });
+});
+
+// Delete project
+document.querySelector('.delete-project-btn')?.addEventListener('click', function() {
+    const projectId = this.getAttribute('data-project-id');
+    const projectName = this.getAttribute('data-project-name');
+
+    if (confirm(`Are you sure you want to delete the roadmap "${projectName}"? This will delete all associated workflow steps and cannot be undone.`)) {
+        fetch(`/product-management/project/${projectId}/delete/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                alert(data.message);
+                window.location.href = '/product-management/';
+            } else {
+                alert('Error: ' + data.error);
+            }
+        })
+        .catch(error => {
+            alert('Error deleting project: ' + error);
+        });
+    }
+});
+
+// Delete workflow step
+document.querySelectorAll('.delete-workflow-step-btn').forEach(button => {
+    button.addEventListener('click', function() {
+        const stepId = this.getAttribute('data-step-id');
+        const stepTitle = this.getAttribute('data-step-title');
+        const stepType = this.getAttribute('data-step-type');
+
+        if (confirm(`Are you sure you want to delete the ${stepType} "${stepTitle}"? This action cannot be undone.`)) {
+            fetch(`/product-management/workflow/${stepId}/delete/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken')
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    window.location.reload();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            })
+            .catch(error => {
+                alert('Error deleting workflow step: ' + error);
+            });
+        }
     });
 });
 
