@@ -20,7 +20,7 @@ class ProductDiscoveryAI:
             self.workflow_step = workflow_step_or_product_step
         else:
             self.workflow_step = None
-        self.api_key = os.environ.get('OPENAI_API_KEY', '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')
+        self.api_key = os.environ.get('OPENAI_API_KEY', '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')
         self.api_url = 'https://api.openai.com/v1/chat/completions'
 
     def get_system_prompt(self):
