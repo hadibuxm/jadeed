@@ -34,7 +34,7 @@ SECRET_KEY = "django-insecure-3i^2+x^+e8=nsfl-mdh89!!#!t(ymgq6u^z71x6$-af$#!lpt(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ["*"]
 
 
 # Application definition
@@ -158,5 +158,5 @@ ATLASSIAN_SCOPES = os.environ.get(
 # GitHub OAuth config
 GITHUB_CLIENT_ID = os.environ.get("GITHUB_CLIENT_ID", "Ov23li06CzpdvO5lQbpi")
 GITHUB_CLIENT_SECRET = os.environ.get("GITHUB_CLIENT_SECRET", "30dcb44c28860ed52ece20f6846f66a1db2f3952")
-GITHUB_REDIRECT_URI = os.environ.get("GITHUB_REDIRECT_URI", "http://localhost:8000/github/callback/")
+GITHUB_REDIRECT_URI = os.environ.get("GITHUB_REDIRECT_URI", "https://geniepm.pythonanywhere.com/github/callback/")
 GITHUB_SCOPES = os.environ.get("GITHUB_SCOPES", "repo user")
