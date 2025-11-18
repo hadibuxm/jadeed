@@ -38,6 +38,33 @@
         position: relative;
     }
 
+    /* Product with Features Container */
+    .product-branch {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 1.5rem;
+    }
+
+    .features-container {
+        display: flex;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+        justify-content: center;
+        position: relative;
+    }
+
+    .features-container::before {
+        content: '';
+        position: absolute;
+        top: -1.5rem;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 2px;
+        height: 1.5rem;
+        background: linear-gradient(to bottom, #dee2e6, #e5e7eb);
+    }
+
     /* Individual Node */
     .tree-node {
         position: relative;
@@ -115,36 +142,6 @@
         font-size: 0.75rem;
         color: #9ca3af;
         margin-top: 0.25rem;
-    }
-
-    /* Connecting Lines */
-    .connection-line {
-        position: absolute;
-        background: linear-gradient(to bottom, #dee2e6, #e5e7eb);
-        width: 2px;
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 1;
-    }
-
-    .connection-vertical {
-        height: 40px;
-        top: 100%;
-    }
-
-    .connection-arrow {
-        position: absolute;
-        left: 50%;
-        transform: translateX(-50%);
-        color: #9ca3af;
-        font-size: 1.5rem;
-        z-index: 1;
-        animation: bounce 2s infinite;
-    }
-
-    @keyframes bounce {
-        0%, 100% { transform: translateX(-50%) translateY(0); }
-        50% { transform: translateX(-50%) translateY(5px); }
     }
 
     /* Level Connector */
@@ -262,7 +259,7 @@
             </div>
         </div>
         <div class="card-body">
-            {% if item.visions or item.initiatives or item.portfolios or item.products or item.features %}
+            {% if item.visions or item.initiatives or item.portfolios or item.products_with_features %}
                 <div class="tree-container">
                     <!-- Vision Level -->
                     {% if item.visions %}
@@ -278,9 +275,6 @@
                                     {% if vision.reference_id %}<div class="badge bg-secondary mb-1">{{ vision.reference_id }}</div><br>{% endif %}
                                     {{ vision.title }}
                                 </div>
-                                {% if vision.parent_step %}
-                                <div class="node-sublabel">← {{ vision.parent_step.title|truncatewords:2 }}</div>
-                                {% endif %}
                             </div>
                             {% endfor %}
                         </div>
@@ -309,9 +303,6 @@
                                     {% if initiative.reference_id %}<div class="badge bg-secondary mb-1">{{ initiative.reference_id }}</div><br>{% endif %}
                                     {{ initiative.title }}
                                 </div>
-                                {% if initiative.parent_step %}
-                                <div class="node-sublabel">← {{ initiative.parent_step.title|truncatewords:2 }}</div>
-                                {% endif %}
                             </div>
                             {% endfor %}
                         </div>
@@ -340,16 +331,13 @@
                                     {% if portfolio.reference_id %}<div class="badge bg-secondary mb-1">{{ portfolio.reference_id }}</div><br>{% endif %}
                                     {{ portfolio.title }}
                                 </div>
-                                {% if portfolio.parent_step %}
-                                <div class="node-sublabel">← {{ portfolio.parent_step.title|truncatewords:2 }}</div>
-                                {% endif %}
                             </div>
                             {% endfor %}
                         </div>
                     </div>
                     {% endif %}
 
-                    {% if item.portfolios and item.products %}
+                    {% if item.portfolios and item.products_with_features %}
                     <div class="level-connector">
                         <div class="level-connector-icon">
                             <i class="fas fa-arrow-down"></i>
@@ -357,53 +345,39 @@
                     </div>
                     {% endif %}
 
-                    <!-- Product Level -->
-                    {% if item.products %}
+                    <!-- Product & Feature Levels -->
+                    {% if item.products_with_features %}
                     <div class="tree-level">
-                        <div class="tree-level-title">Product</div>
+                        <div class="tree-level-title">Products & Features</div>
                         <div class="tree-nodes">
-                            {% for product in item.products %}
-                            <div class="tree-node node-product" onclick="window.location.href='{% url 'product_management:product_steps' product.id %}'">
-                                <div class="node-circle {% if product.is_completed %}completed{% endif %}">
-                                    <i class="fas fa-box"></i>
+                            {% for item_data in item.products_with_features %}
+                            <div class="product-branch">
+                                <!-- Product Node -->
+                                <div class="tree-node node-product" onclick="window.location.href='{% url 'product_management:product_steps' item_data.product.id %}'">
+                                    <div class="node-circle {% if item_data.product.is_completed %}completed{% endif %}">
+                                        <i class="fas fa-box"></i>
+                                    </div>
+                                    <div class="node-label">
+                                        {% if item_data.product.reference_id %}<div class="badge bg-secondary mb-1">{{ item_data.product.reference_id }}</div><br>{% endif %}
+                                        {{ item_data.product.title }}
+                                    </div>
                                 </div>
-                                <div class="node-label">
-                                    {% if product.reference_id %}<div class="badge bg-secondary mb-1">{{ product.reference_id }}</div><br>{% endif %}
-                                    {{ product.title }}
-                                </div>
-                                {% if product.parent_step %}
-                                <div class="node-sublabel">← {{ product.parent_step.title|truncatewords:2 }}</div>
-                                {% endif %}
-                            </div>
-                            {% endfor %}
-                        </div>
-                    </div>
-                    {% endif %}
 
-                    {% if item.products and item.features %}
-                    <div class="level-connector">
-                        <div class="level-connector-icon">
-                            <i class="fas fa-arrow-down"></i>
-                        </div>
-                    </div>
-                    {% endif %}
-
-                    <!-- Feature Level -->
-                    {% if item.features %}
-                    <div class="tree-level">
-                        <div class="tree-level-title">Feature</div>
-                        <div class="tree-nodes">
-                            {% for feature in item.features %}
-                            <div class="tree-node node-feature" onclick="window.location.href='{% url 'product_management:workflow_chat' feature.id %}'">
-                                <div class="node-circle {% if feature.is_completed %}completed{% endif %}">
-                                    <i class="fas fa-star"></i>
+                                <!-- Features branching from this Product -->
+                                {% if item_data.features %}
+                                <div class="features-container">
+                                    {% for feature in item_data.features %}
+                                    <div class="tree-node node-feature" onclick="window.location.href='{% url 'product_management:workflow_chat' feature.id %}'">
+                                        <div class="node-circle {% if feature.is_completed %}completed{% endif %}">
+                                            <i class="fas fa-star"></i>
+                                        </div>
+                                        <div class="node-label">
+                                            {% if feature.reference_id %}<div class="badge bg-secondary mb-1">{{ feature.reference_id }}</div><br>{% endif %}
+                                            {{ feature.title }}
+                                        </div>
+                                    </div>
+                                    {% endfor %}
                                 </div>
-                                <div class="node-label">
-                                    {% if feature.reference_id %}<div class="badge bg-secondary mb-1">{{ feature.reference_id }}</div><br>{% endif %}
-                                    {{ feature.title }}
-                                </div>
-                                {% if feature.parent_step %}
-                                <div class="node-sublabel">← {{ feature.parent_step.title|truncatewords:2 }}</div>
                                 {% endif %}
                             </div>
                             {% endfor %}

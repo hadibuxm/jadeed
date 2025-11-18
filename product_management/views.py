@@ -24,14 +24,30 @@ def index(request):
     projects = Project.objects.filter(user=request.user)
 
     # Get all products - both project-associated and standalone (owned by user)
-    products = Product.objects.filter(
+    products_query = Product.objects.filter(
         Q(workflow_step__project__user=request.user) | Q(workflow_step__user=request.user)
     ).select_related('workflow_step', 'workflow_step__project').distinct()
 
     # Get all features - both project-associated and standalone (owned by user)
-    features = Feature.objects.filter(
+    features_query = Feature.objects.filter(
         Q(workflow_step__project__user=request.user) | Q(workflow_step__user=request.user)
     ).select_related('workflow_step', 'workflow_step__project', 'workflow_step__parent_step').distinct()
+
+    # Group products and features by status
+    items_by_status = {
+        'backlog': {'products': [], 'features': []},
+        'todo': {'products': [], 'features': []},
+        'in_progress': {'products': [], 'features': []},
+        'completed': {'products': [], 'features': []},
+    }
+
+    for product in products_query:
+        status = product.workflow_step.status
+        items_by_status[status]['products'].append(product)
+
+    for feature in features_query:
+        status = feature.workflow_step.status
+        items_by_status[status]['features'].append(feature)
 
     # Get recent items for quick access (limit to 5 most recent)
     recent_items = RecentItem.objects.filter(user=request.user)[:5]
@@ -46,8 +62,7 @@ def index(request):
 
     context = {
         'projects': projects,
-        'products': products,
-        'features': features,
+        'items_by_status': items_by_status,
         'recent_items': recent_items,
         'has_github': has_github,
     }
@@ -70,15 +85,22 @@ def hierarchy_view(request):
         initiatives = project.workflow_steps.filter(step_type='initiative')
         portfolios = project.workflow_steps.filter(step_type='portfolio')
         products = project.workflow_steps.filter(step_type='product')
-        features = project.workflow_steps.filter(step_type='feature')
+
+        # Build product -> features mapping
+        products_with_features = []
+        for product in products:
+            features = product.child_steps.filter(step_type='feature')
+            products_with_features.append({
+                'product': product,
+                'features': features
+            })
 
         project_data = {
             'project': project,
             'visions': visions,
             'initiatives': initiatives,
             'portfolios': portfolios,
-            'products': products,
-            'features': features,
+            'products_with_features': products_with_features,
         }
         hierarchy_data.append(project_data)
 
@@ -277,6 +299,7 @@ def create_workflow_step(request, project_id=None):
         description = data.get('description', '').strip()
         parent_step_id = data.get('parent_step_id')
         provided_project_id = data.get('project_id')
+        status = data.get('status', 'backlog')  # Get status from request, default to backlog
 
         # Use provided project_id if no URL project_id
         if not project and provided_project_id:
@@ -320,6 +343,44 @@ def create_workflow_step(request, project_id=None):
                     'error': 'Parent step not found.'
                 }, status=404)
 
+        # Validate hierarchy rules
+        hierarchy_order = {
+            'vision': 0,
+            'initiative': 1,
+            'portfolio': 2,
+            'product': 3,
+            'feature': 4
+        }
+
+        # Features MUST have a Product as parent
+        if step_type == 'feature':
+            if not parent_step:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Features must be associated with a Product.'
+                }, status=400)
+            if parent_step.step_type != 'product':
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Features can only be created under a Product.'
+                }, status=400)
+
+        # Validate parent-child hierarchy order
+        if parent_step:
+            parent_level = hierarchy_order.get(parent_step.step_type, -1)
+            child_level = hierarchy_order.get(step_type, -1)
+
+            # Child must be exactly one level below parent OR feature under product
+            if step_type == 'feature' and parent_step.step_type == 'product':
+                # This is valid: Product -> Feature
+                pass
+            elif child_level != parent_level + 1:
+                return JsonResponse({
+                    'success': False,
+                    'error': f'Invalid hierarchy: {step_type.capitalize()} cannot be a child of {parent_step.step_type.capitalize()}. '
+                            f'Valid hierarchy: Vision → Initiative → Portfolio → Product → Feature'
+                }, status=400)
+
         # Create workflow step
         workflow_step = WorkflowStep.objects.create(
             project=project,  # Can be None for standalone steps
@@ -327,7 +388,8 @@ def create_workflow_step(request, project_id=None):
             step_type=step_type,
             title=title,
             description=description,
-            parent_step=parent_step
+            parent_step=parent_step,
+            status=status  # Set the status from request
         )
 
         # Create the specific detail model
@@ -501,6 +563,10 @@ def generate_readme(request, step_id):
         }, status=404)
 
     try:
+        # Set status to in_progress when generating README
+        workflow_step.status = 'in_progress'
+        workflow_step.save()
+
         ai_service = ProductDiscoveryAI(workflow_step)
         result = ai_service.generate_readme()
 
@@ -561,6 +627,7 @@ def complete_step(request, step_id):
         }, status=404)
 
     workflow_step.is_completed = True
+    workflow_step.status = 'completed'  # Set status to completed
     workflow_step.save()
 
     return JsonResponse({
@@ -763,6 +830,75 @@ def track_recent_item(request):
         }, status=400)
     except Exception as e:
         logger.error(f"Error tracking recent item: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@require_POST
+def update_status(request):
+    """Update the status of a workflow step (for Kanban board drag-and-drop)."""
+    try:
+        data = json.loads(request.body)
+        item_id = data.get('item_id')
+        new_status = data.get('status')
+
+        if not item_id or not new_status:
+            return JsonResponse({
+                'success': False,
+                'error': 'Item ID and status are required.'
+            }, status=400)
+
+        # Validate status
+        valid_statuses = ['backlog', 'todo', 'in_progress', 'completed']
+        if new_status not in valid_statuses:
+            return JsonResponse({
+                'success': False,
+                'error': f'Invalid status. Must be one of: {", ".join(valid_statuses)}'
+            }, status=400)
+
+        # Get the workflow step and verify user has access
+        workflow_step = get_object_or_404(WorkflowStep, id=item_id)
+
+        # Check if user has access (either through project or user ownership)
+        if workflow_step.project:
+            if workflow_step.project.user != request.user:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'You do not have permission to update this item.'
+                }, status=403)
+        elif workflow_step.user and workflow_step.user != request.user:
+            return JsonResponse({
+                'success': False,
+                'error': 'You do not have permission to update this item.'
+            }, status=403)
+
+        # Update the status
+        workflow_step.status = new_status
+
+        # Also update is_completed for backward compatibility
+        if new_status == 'completed':
+            workflow_step.is_completed = True
+        else:
+            workflow_step.is_completed = False
+
+        workflow_step.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': f'Status updated to {new_status}',
+            'new_status': new_status
+        })
+
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON.'
+        }, status=400)
+    except Exception as e:
+        logger.error(f"Error updating status: {str(e)}")
         return JsonResponse({
             'success': False,
             'error': str(e)

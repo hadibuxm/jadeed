@@ -304,6 +304,20 @@
                 <form id="createStepForm">
                     <input type="hidden" id="stepType">
                     <input type="hidden" id="parentStepId">
+
+                    <div class="mb-3" id="productSelectGroup" style="display: none;">
+                        <label class="form-label fw-bold">Product *</label>
+                        <select class="form-select" id="productSelect">
+                            <option value="">-- Select Product --</option>
+                            {% for step in steps_by_type.product %}
+                            <option value="{{ step.id }}">
+                                {% if step.reference_id %}[{{ step.reference_id }}] {% endif %}{{ step.title }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                        <small class="text-muted">Features must be associated with a product</small>
+                    </div>
+
                     <div class="mb-3">
                         <label class="form-label fw-bold">Title *</label>
                         <input type="text" class="form-control" id="stepTitle" required>
@@ -311,6 +325,17 @@
                     <div class="mb-3">
                         <label class="form-label fw-bold">Description</label>
                         <textarea class="form-control" id="stepDescription" rows="3"></textarea>
+                    </div>
+
+                    <div class="mb-3" id="statusSelectGroup" style="display: none;">
+                        <label class="form-label fw-bold">Status</label>
+                        <select class="form-select" id="statusSelect">
+                            <option value="backlog" selected>Backlog</option>
+                            <option value="todo">To Do</option>
+                            <option value="in_progress">In Progress</option>
+                            <option value="completed">Completed</option>
+                        </select>
+                        <small class="text-muted">Set the initial status for this feature</small>
                     </div>
                 </form>
             </div>
@@ -336,6 +361,18 @@ function createStep(stepType, parentStepId) {
     document.getElementById('createStepModalTitle').textContent = `Create ${stepType.charAt(0).toUpperCase() + stepType.slice(1)}`;
     document.getElementById('createStepForm').reset();
     document.getElementById('stepType').value = stepType;
+
+    // Show product selector and status selector for features
+    const productSelectGroup = document.getElementById('productSelectGroup');
+    const statusSelectGroup = document.getElementById('statusSelectGroup');
+    if (stepType === 'feature') {
+        productSelectGroup.style.display = '';
+        statusSelectGroup.style.display = '';
+    } else {
+        productSelectGroup.style.display = 'none';
+        statusSelectGroup.style.display = 'none';
+    }
+
     createStepModal.show();
 }
 
@@ -343,7 +380,19 @@ document.getElementById('createStepBtn').addEventListener('click', function() {
     const stepType = document.getElementById('stepType').value;
     const title = document.getElementById('stepTitle').value.trim();
     const description = document.getElementById('stepDescription').value.trim();
-    const parentStepId = document.getElementById('parentStepId').value;
+    let parentStepId = document.getElementById('parentStepId').value;
+    let status = 'backlog'; // Default status
+
+    // For features, use the selected product as parent and get status
+    if (stepType === 'feature') {
+        const selectedProduct = document.getElementById('productSelect').value;
+        if (!selectedProduct) {
+            alert('Please select a product for this feature');
+            return;
+        }
+        parentStepId = selectedProduct;
+        status = document.getElementById('statusSelect').value;
+    }
 
     if (!title) {
         alert('Please enter a title');
@@ -363,7 +412,8 @@ document.getElementById('createStepBtn').addEventListener('click', function() {
             step_type: stepType,
             title: title,
             description: description,
-            parent_step_id: parentStepId || null
+            parent_step_id: parentStepId || null,
+            status: status
         })
     })
     .then(response => response.json())

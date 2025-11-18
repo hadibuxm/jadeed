@@ -8,6 +8,7 @@ urlpatterns = [
     path('', views.index, name='index'),
     path('hierarchy/', views.hierarchy_view, name='hierarchy'),
     path('track-recent/', views.track_recent_item, name='track_recent_item'),
+    path('update-status/', views.update_status, name='update_status'),
 
     # Project management
     path('project/create/', views.create_project, name='create_project'),

@@ -38,6 +38,13 @@ class WorkflowStep(models.Model):
         ('feature', 'Feature'),
     ]
 
+    STATUS_CHOICES = [
+        ('backlog', 'Backlog'),
+        ('todo', 'To Do'),
+        ('in_progress', 'In Progress'),
+        ('completed', 'Completed'),
+    ]
+
     project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name='workflow_steps', null=True, blank=True)
     user = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='workflow_steps', null=True, blank=True)
     step_type = models.CharField(max_length=20, choices=STEP_CHOICES)
@@ -64,6 +71,7 @@ class WorkflowStep(models.Model):
     readme_generated_at = models.DateTimeField(null=True, blank=True)
 
     # Status
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='backlog')
     is_completed = models.BooleanField(default=False)
 
     created_at = models.DateTimeField(auto_now_add=True)
@@ -140,10 +148,58 @@ class WorkflowStep(models.Model):
 
         return f"{prefix}-{next_number:04d}"
 
+    def clean(self):
+        """Validate hierarchy rules."""
+        from django.core.exceptions import ValidationError
+
+        # Define hierarchy order
+        hierarchy_order = {
+            'vision': 0,
+            'initiative': 1,
+            'portfolio': 2,
+            'product': 3,
+            'feature': 4
+        }
+
+        # Features MUST have a Product as parent
+        if self.step_type == 'feature':
+            if not self.parent_step:
+                raise ValidationError('Features must be associated with a Product.')
+            if self.parent_step.step_type != 'product':
+                raise ValidationError('Features can only be created under a Product.')
+
+        # Validate parent-child hierarchy order
+        if self.parent_step:
+            parent_level = hierarchy_order.get(self.parent_step.step_type, -1)
+            child_level = hierarchy_order.get(self.step_type, -1)
+
+            # Child must be exactly one level below parent
+            if self.step_type == 'feature' and self.parent_step.step_type == 'product':
+                # This is valid: Product -> Feature
+                pass
+            elif child_level != parent_level + 1:
+                raise ValidationError(
+                    f'Invalid hierarchy: {self.get_step_type_display()} cannot be a child of '
+                    f'{self.parent_step.get_step_type_display()}. '
+                    f'Valid hierarchy: Vision → Initiative → Portfolio → Product → Feature'
+                )
+
+        # Prevent circular references
+        if self.parent_step:
+            current = self.parent_step
+            visited = set()
+            while current:
+                if current.id == self.id or current.id in visited:
+                    raise ValidationError('Circular reference detected in hierarchy.')
+                visited.add(current.id)
+                current = current.parent_step
+
     def save(self, *args, **kwargs):
-        """Override save to auto-generate reference_id."""
+        """Override save to auto-generate reference_id and validate."""
         if not self.reference_id:
             self.reference_id = self.generate_reference_id()
+        # Call clean to validate before saving
+        self.clean()
         super().save(*args, **kwargs)
 
     def add_message(self, role, content):
