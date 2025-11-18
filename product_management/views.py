@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import timedelta
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
@@ -601,6 +602,106 @@ def generate_readme(request, step_id):
 
     except Exception as e:
         logger.error(f"Error generating README: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
+@require_POST
+def ensure_readme_synced(request, step_id):
+    """Ensure a feature README exists, is up-to-date, and saved to GitHub."""
+    workflow_step = get_object_or_404(WorkflowStep, id=step_id)
+
+    # Verify user access
+    if workflow_step.project:
+        if workflow_step.project.user != request.user:
+            return JsonResponse({
+                'success': False,
+                'error': 'Workflow step not found.'
+            }, status=404)
+    elif workflow_step.user and workflow_step.user != request.user:
+        return JsonResponse({
+            'success': False,
+            'error': 'Workflow step not found.'
+        }, status=404)
+
+    if workflow_step.step_type != 'feature':
+        return JsonResponse({
+            'success': False,
+            'error': 'Automatic README sync is only available for features.'
+        }, status=400)
+
+    if not workflow_step.project or not workflow_step.project.github_repository:
+        return JsonResponse({
+            'success': False,
+            'error': 'Connect this feature to a roadmap with a GitHub repository before requesting code changes.'
+        }, status=400)
+
+    try:
+        ai_service = ProductDiscoveryAI(workflow_step)
+
+        # Determine if README needs regeneration
+        needs_generation = (
+            not workflow_step.readme_content or
+            not workflow_step.readme_generated_at
+        )
+
+        if not needs_generation and workflow_step.updated_at and workflow_step.readme_generated_at:
+            delta = workflow_step.updated_at - workflow_step.readme_generated_at
+            if delta > timedelta(seconds=1):
+                needs_generation = True
+
+        if needs_generation:
+            # Mark as in progress to reflect active work
+            if workflow_step.status != 'in_progress':
+                workflow_step.status = 'in_progress'
+                workflow_step.save(update_fields=['status'])
+
+            generate_result = ai_service.generate_readme()
+            if not generate_result.get('success'):
+                return JsonResponse({
+                    'success': False,
+                    'error': generate_result.get('error', 'Unable to generate README. Try adding more context first.')
+                }, status=400)
+
+        if not workflow_step.readme_content:
+            return JsonResponse({
+                'success': False,
+                'error': 'README content is empty. Add more detail to the feature before requesting code generation.'
+            }, status=400)
+
+        # Save README to GitHub
+        try:
+            github_connection = request.user.github_connection
+        except GitHubConnection.DoesNotExist:
+            return JsonResponse({
+                'success': False,
+                'error': 'Connect your GitHub account before requesting code changes.'
+            }, status=400)
+
+        github_result = ai_service.save_readme_to_github(
+            github_connection,
+            workflow_step.project.github_repository
+        )
+
+        if not github_result.get('success'):
+            return JsonResponse({
+                'success': False,
+                'error': github_result.get('error', 'Failed to save README to GitHub.')
+            }, status=400)
+
+        return JsonResponse({
+            'success': True,
+            'readme_content': workflow_step.readme_content,
+            'regenerated': needs_generation,
+            'github_url': github_result.get('url'),
+            'github_file_path': github_result.get('file_path')
+        })
+
+    except Exception as e:
+        logger.error(f"Error ensuring README sync: {str(e)}")
         return JsonResponse({
             'success': False,
             'error': str(e)

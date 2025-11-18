@@ -184,10 +184,19 @@
 <div class="project-selector">
     <div class="d-flex justify-content-between align-items-center">
         <div class="d-flex align-items-center gap-3 flex-grow-1">
-            <span class="project-selector-label">
-                <i class="fas fa-th-large"></i>
-                Dashboard
-            </span>
+            <select class="form-select" id="productNavigator">
+                            <option value="">-- Select a Product --</option>
+                            {% for status, items in items_by_status.items %}
+                                {% for product in items.products %}
+                                <option value="{{ product.workflow_step.id }}" data-url="{% url 'product_management:product_steps' product.workflow_step.id %}" data-title="{{ product.workflow_step.title }}">
+                                    {% if product.workflow_step.reference_id %}[{{ product.workflow_step.reference_id }}] {% endif %}{{ product.workflow_step.title }}
+                                    {% if product.workflow_step.project %}
+                                        ({{ product.workflow_step.project.name }})
+                                    {% endif %}
+                                </option>
+                                {% endfor %}
+                            {% endfor %}
+                        </select>
         </div>
         <div class="quick-actions">
             <a href="{% url 'product_management:hierarchy' %}" class="btn btn-sm btn-creative-outline">
@@ -233,7 +242,7 @@
 {% endif %}
 
 <!-- Quick Navigation Section -->
-<div class="row mb-4">
+<div class="row mb-4" style="display: none;">
     <div class="col-12">
         <div class="card">
             <div class="card-body">
@@ -673,7 +682,7 @@
                 <form id="createWorkflowForm">
                     <input type="hidden" id="workflowStepType" value="">
 
-                    <div class="mb-3" id="productSelectGroup" style="display: none;">
+                    <div class="mb-4" id="productSelectGroup" style="display: none;">
                         <label class="form-label fw-bold">Product *</label>
                         <select class="form-select" id="workflowProductSelect">
                             <option value="">-- Select Product --</option>
@@ -686,7 +695,7 @@
                         <small class="text-muted">Features must be associated with a product</small>
                     </div>
 
-                    <div class="mb-3">
+                    <div class="mb-4">
                         <label class="form-label fw-bold">Roadmap (Optional)</label>
                         <select class="form-select" id="workflowProjectSelect">
                             <option value="">-- No Roadmap (Standalone) --</option>

@@ -87,16 +87,7 @@
 <div class="row mb-4">
     <div class="col-12">
         <div class="d-flex justify-content-between align-items-start">
-            <div class="flex-grow-1">
-                <h1 class="mb-2">
-                    {% if workflow_step.reference_id %}<span class="badge bg-secondary me-2">{{ workflow_step.reference_id }}</span>{% endif %}
-                    <span class="badge badge-{{ workflow_step.step_type }} me-2">{{ workflow_step.get_step_type_display }}</span>
-                    {{ workflow_step.title }}
-                </h1>
-                {% if workflow_step.description %}
-                <p class="text-muted">{{ workflow_step.description }}</p>
-                {% endif %}
-            </div>
+            
             <div>
                 <button class="btn btn-danger btn-sm delete-workflow-step-btn"
                         data-step-id="{{ workflow_step.id }}"
@@ -285,6 +276,18 @@
         </div>
     </div>
 </div>
+
+<!-- AI processing modal -->
+<div class="modal fade" id="aiProcessingModal" tabindex="-1" aria-hidden="true" data-bs-backdrop="static" data-bs-keyboard="false">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content text-center border-0 shadow">
+            <div class="modal-body py-5">
+                <div class="spinner-border text-creative mb-3" role="status" aria-hidden="true"></div>
+                <p class="fw-semibold mb-0">Working on it….</p>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
@@ -295,6 +298,8 @@ const chatContainer = document.getElementById('chatContainer');
 const messageInput = document.getElementById('messageInput');
 const chatForm = document.getElementById('chatForm');
 const sendBtn = document.getElementById('sendBtn');
+const readmeCard = document.getElementById('readmeCard');
+const readmePreview = document.getElementById('readmePreview');
 const editDescriptionBtn = document.getElementById('editDescriptionBtn');
 const descriptionDisplay = document.getElementById('workflowDescriptionDisplay');
 const descriptionForm = document.getElementById('workflowDescriptionForm');
@@ -304,6 +309,16 @@ const cancelDescriptionBtn = document.getElementById('cancelDescriptionBtn');
 const saveDescriptionBtn = document.getElementById('saveDescriptionBtn');
 const emptyDescriptionCopy = 'No description yet. Use "Edit Description" to add more context.';
 let descriptionCache = descriptionInput ? descriptionInput.value : '';
+const aiProcessingModalElement = document.getElementById('aiProcessingModal');
+const aiProcessingModal = aiProcessingModalElement ? new bootstrap.Modal(aiProcessingModalElement) : null;
+
+function showAiProcessingModal() {
+    aiProcessingModal?.show();
+}
+
+function hideAiProcessingModal() {
+    aiProcessingModal?.hide();
+}
 
 // Load conversation history
 loadConversation();
@@ -418,8 +433,7 @@ document.getElementById('generateReadmeBtn').addEventListener('click', function(
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            document.getElementById('readmePreview').innerHTML = marked.parse(data.readme_content);
-            document.getElementById('readmeCard').style.display = 'block';
+            updateReadmePreview(data.readme_content);
             alert('README generated successfully!');
         } else {
             alert('Error: ' + data.error);
@@ -476,42 +490,84 @@ const workflowData = {
 };
 
 document.getElementById('requestCodeChangeBtn')?.addEventListener('click', function() {
-    // Check if README is available (better context than raw conversation)
-    const readmeContent = document.getElementById('readmePreview')?.textContent;
+    const button = this;
+    const originalLabel = button.innerHTML;
+    const restoreButton = () => {
+        button.disabled = false;
+        button.innerHTML = originalLabel;
+    };
+
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Preparing README...';
+    showAiProcessingModal();
+
+    ensureReadmeSynced()
+        .then(readmeContent => {
+            button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Requesting...';
+            const changeRequest = buildCodeChangeRequest(readmeContent);
+            return submitCodeChangeRequest(changeRequest);
+        })
+        .then(() => {
+            restoreButton();
+        })
+        .catch(error => {
+            if (error && error.message) {
+                alert(error.message);
+            } else if (error) {
+                alert(error);
+            }
+            restoreButton();
+        })
+        .finally(() => {
+            hideAiProcessingModal();
+        });
+});
+
+function ensureReadmeSynced() {
+    return fetch(`/product-management/workflow/${stepId}/ensure-readme/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken')
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to sync README.');
+        }
+        if (data.readme_content) {
+            updateReadmePreview(data.readme_content);
+        }
+        return data.readme_content;
+    });
+}
+
+function buildCodeChangeRequest(readmeContent) {
+    const safeDescription = workflowData.description?.trim()?.length
+        ? workflowData.description
+        : 'No description provided.';
 
     let changeRequest = `Feature: ${workflowData.title}\n\n`;
-    changeRequest += `Description: ${workflowData.description}\n\n`;
+    changeRequest += `Description: ${safeDescription}\n\n`;
+    changeRequest += 'Feature Specification (from generated README):\n\n';
+    changeRequest += `${readmeContent}\n\n`;
+    changeRequest += 'Please implement this feature based on the specification above.';
 
-    // Prefer README if available, otherwise use conversation history
-    if (readmeContent && readmeContent.trim().length > 0) {
-        changeRequest += 'Feature Specification (from generated README):\n\n';
-        changeRequest += readmeContent;
-        changeRequest += '\n\nPlease implement this feature based on the specification above.';
-    } else if (workflowData.conversationHistory && workflowData.conversationHistory.length > 0) {
-        changeRequest += 'Context from AI conversation:\n';
+    if (workflowData.conversationHistory && workflowData.conversationHistory.length > 0) {
+        changeRequest += '\n\nAdditional context from AI conversation:\n';
         workflowData.conversationHistory.forEach(msg => {
             if (msg.role === 'user' || msg.role === 'assistant') {
-                changeRequest += `${msg.role}: ${msg.content.substring(0, 500)}\n`;
+                const snippet = msg.content ? msg.content.substring(0, 500) : '';
+                changeRequest += `${msg.role}: ${snippet}\n`;
             }
         });
-        changeRequest += '\n\nNote: Consider generating a README first for better results.';
-    } else {
-        alert('Please have a conversation with AI or generate a README before requesting code implementation.');
-        return;
     }
 
-    const message = readmeContent && readmeContent.trim().length > 0
-        ? 'This will implement the feature based on the generated README. Continue?'
-        : 'No README found. This will use the raw conversation. For better results, generate a README first. Continue anyway?';
+    return changeRequest;
+}
 
-    if (!confirm(message)) {
-        return;
-    }
-
-    this.disabled = true;
-    this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Requesting...';
-
-    fetch('/github/request-code-change/', {
+function submitCodeChangeRequest(changeRequest) {
+    return fetch('/github/request-code-change/', {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -524,25 +580,19 @@ document.getElementById('requestCodeChangeBtn')?.addEventListener('click', funct
     })
     .then(response => response.json())
     .then(data => {
-        if (data.success) {
-            alert('Code change request submitted successfully!');
-            document.getElementById('codeChangeStatus').style.display = 'block';
-            document.getElementById('statusText').textContent = 'Processing code changes...';
-
-            // Start polling for status
-            pollCodeChangeStatus(data.request_id);
-        } else {
-            alert('Error: ' + (data.error || 'Unknown error'));
+        if (!data.success) {
+            throw new Error(data.error || 'Failed to submit code change request.');
         }
-        this.disabled = false;
-        this.innerHTML = '<i class="fas fa-code me-1"></i>Implement Feature';
-    })
-    .catch(error => {
-        alert('Error requesting code change: ' + error);
-        this.disabled = false;
-        this.innerHTML = '<i class="fas fa-code me-1"></i>Implement Feature';
+        alert('Code change request submitted successfully!');
+        const statusContainer = document.getElementById('codeChangeStatus');
+        const statusText = document.getElementById('statusText');
+        if (statusContainer && statusText) {
+            statusContainer.style.display = 'block';
+            statusText.textContent = 'Processing code changes...';
+        }
+        pollCodeChangeStatus(data.request_id);
     });
-});
+}
 
 function pollCodeChangeStatus(requestId) {
     const statusInterval = setInterval(() => {
@@ -634,8 +684,7 @@ function loadConversation() {
             });
         }
         if (data.readme_content) {
-            document.getElementById('readmePreview').innerHTML = marked.parse(data.readme_content);
-            document.getElementById('readmeCard').style.display = 'block';
+            updateReadmePreview(data.readme_content);
         }
     });
 }
@@ -699,6 +748,17 @@ function renderDescriptionText(text) {
     } else {
         descriptionText.classList.add('fst-italic');
         descriptionText.textContent = emptyDescriptionCopy;
+    }
+}
+
+function updateReadmePreview(content) {
+    if (!readmePreview) {
+        return;
+    }
+
+    readmePreview.innerHTML = marked.parse(content);
+    if (readmeCard) {
+        readmeCard.style.display = 'block';
     }
 }
 

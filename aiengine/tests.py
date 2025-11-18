@@ -13,3 +13,5 @@ headers = {"Authorization": f"Bearer {secret}"}
 response = requests.get(url, headers=headers)
 
 print(response.json())
+
+
