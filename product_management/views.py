@@ -906,6 +906,75 @@ def update_status(request):
 
 
 @login_required
+@require_POST
+def update_workflow_step(request, step_id):
+    """Update editable fields (e.g., description) for a workflow step."""
+    workflow_step = get_object_or_404(WorkflowStep, id=step_id)
+
+    # Verify access rights (project owner or standalone owner)
+    if workflow_step.project:
+        if workflow_step.project.user != request.user:
+            return JsonResponse({
+                'success': False,
+                'error': 'You do not have permission to update this item.'
+            }, status=403)
+    elif workflow_step.user and workflow_step.user != request.user:
+        return JsonResponse({
+            'success': False,
+            'error': 'You do not have permission to update this item.'
+        }, status=403)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({
+            'success': False,
+            'error': 'Invalid JSON.'
+        }, status=400)
+
+    description = data.get('description')
+    title = data.get('title')
+
+    if description is None and title is None:
+        return JsonResponse({
+            'success': False,
+            'error': 'No updates provided.'
+        }, status=400)
+
+    try:
+        updated_fields = []
+
+        if title is not None:
+            cleaned_title = title.strip()
+            if not cleaned_title:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Title cannot be empty.'
+                }, status=400)
+            workflow_step.title = cleaned_title
+            updated_fields.append('title')
+
+        if description is not None:
+            workflow_step.description = description.strip()
+            updated_fields.append('description')
+
+        workflow_step.save()
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Workflow step updated successfully.',
+            'title': workflow_step.title,
+            'description': workflow_step.description
+        })
+    except Exception as e:
+        logger.error(f"Error updating workflow step: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@login_required
 def product_step_chat(request, product_step_id):
     """Chat interface for AI-assisted product step."""
     product_step = get_object_or_404(ProductStep, id=product_step_id)

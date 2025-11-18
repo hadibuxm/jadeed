@@ -23,6 +23,7 @@ urlpatterns = [
     path('workflow/create/', views.create_workflow_step, name='create_workflow_step_standalone'),
     path('project/<int:project_id>/step/create/', views.create_workflow_step, name='create_workflow_step'),
     path('workflow/<int:step_id>/', views.workflow_chat, name='workflow_chat'),
+    path('workflow/<int:step_id>/update/', views.update_workflow_step, name='update_workflow_step'),
     path('workflow/<int:step_id>/message/', views.send_message, name='send_message'),
     path('workflow/<int:step_id>/conversation/', views.get_conversation, name='get_conversation'),
     path('workflow/<int:step_id>/readme/', views.generate_readme, name='generate_readme'),
