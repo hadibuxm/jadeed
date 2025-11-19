@@ -1,6 +1,6 @@
 {% extends 'product_management/base.html' %}
 
-{% block title %}{{ product.workflow_step.title }}{% endblock %}
+{% block title %}{{ feature.workflow_step.title }}{% endblock %}
 
 {% block content %}
 <div class="row mb-4">
@@ -22,8 +22,6 @@
                             <span class="badge badge-{{ item.step_type }} me-1">{{ item.get_step_type_display }}</span>
                             {% if item.step_type == 'product' %}
                                 <a href="{% url 'product_management:product_steps' item.id %}">{{ item.title }}</a>
-                            {% elif item.step_type == 'feature' %}
-                                <a href="{% url 'product_management:feature_steps' item.id %}">{{ item.title }}</a>
                             {% else %}
                                 <a href="{% url 'product_management:workflow_chat' item.id %}">{{ item.title }}</a>
                             {% endif %}
@@ -42,17 +40,17 @@
                 <div class="d-flex justify-content-between align-items-start">
                     <div class="flex-grow-1">
                         <h1 class="mb-2">
-                            {% if product.workflow_step.reference_id %}<span class="badge bg-secondary me-2">{{ product.workflow_step.reference_id }}</span>{% endif %}
-                            <span class="badge badge-product me-2">Product</span>
-                            {{ product.workflow_step.title }}
+                            {% if feature.workflow_step.reference_id %}<span class="badge bg-secondary me-2">{{ feature.workflow_step.reference_id }}</span>{% endif %}
+                            <span class="badge badge-feature me-2">Feature</span>
+                            {{ feature.workflow_step.title }}
                         </h1>
-                        <p class="mb-0 opacity-75">Product Development Lifecycle: Strategic → Tactical → Release</p>
+                        <p class="mb-0 opacity-75">Feature Delivery Lifecycle: Planning → Development → Delivery</p>
                     </div>
                     <div>
-                        <button class="btn btn-danger btn-sm delete-product-btn"
-                                data-product-id="{{ workflow_step.id }}"
-                                data-product-title="{{ product.workflow_step.title }}">
-                            <i class="fas fa-trash me-1"></i>Delete Product
+                        <button class="btn btn-danger btn-sm delete-feature-btn"
+                                data-feature-id="{{ workflow_step.id }}"
+                                data-feature-title="{{ feature.workflow_step.title }}">
+                            <i class="fas fa-trash me-1"></i>Delete Feature
                         </button>
                     </div>
                 </div>
@@ -64,30 +62,30 @@
 <div class="row mb-4">
     <div class="col-12">
         <h3 class="section-title">
-            <i class="fas fa-tasks me-2"></i>Product Development Steps
+            <i class="fas fa-stream me-2"></i>Feature Delivery Steps
         </h3>
-        <p class="text-muted mb-4">Follow the structured product development process with AI-assisted documentation and conversations at each step.</p>
+        <p class="text-muted mb-4">Break each feature into a repeatable micro-lifecycle so discovery, build, and release stay aligned.</p>
     </div>
 </div>
 
-<!-- STRATEGIC / DISCOVERY LAYER -->
+<!-- PLANNING LAYER -->
 <div class="row mb-4">
     <div class="col-12">
         <h4 class="mb-3">
             <span class="badge bg-info text-white px-3 py-2">
-                <i class="fas fa-lightbulb me-2"></i>Strategic / Discovery Layer
+                <i class="fas fa-pencil-alt me-2"></i>Planning Layer
             </span>
         </h4>
     </div>
 </div>
 
 <div class="row">
-    {% for step in steps_by_layer.strategic %}
+    {% for step in steps_by_layer.planning %}
     <div class="col-md-6 col-lg-4 mb-4">
         <div class="card h-100">
             <div class="card-header bg-white border-0 pt-3">
                 <h5 class="mb-0">
-                    <span class="workflow-badge badge-product">
+                    <span class="workflow-badge badge-feature">
                         {{ forloop.counter }}. {{ step.get_step_type_display }}
                     </span>
                     {% if step.is_completed %}
@@ -99,10 +97,10 @@
                 <h6 class="mb-2">{{ step.title }}</h6>
                 <small class="text-muted">{{ step.description|truncatewords:15 }}</small>
                 <div class="mt-3 d-flex gap-2">
-                    <a href="{% url 'product_management:product_step_chat' step.id %}" class="btn btn-sm btn-creative-outline">
+                    <a href="{% url 'product_management:feature_step_chat' step.id %}" class="btn btn-sm btn-creative-outline">
                         Open <i class="fas fa-arrow-right ms-1"></i>
                     </a>
-                    <button class="btn btn-sm btn-outline-danger delete-product-step-btn"
+                    <button class="btn btn-sm btn-outline-danger delete-feature-step-btn"
                             data-step-id="{{ step.id }}"
                             data-step-title="{{ step.title }}">
                         <i class="fas fa-trash"></i>
@@ -114,7 +112,7 @@
     {% empty %}
     <div class="col-12">
         <div class="alert alert-light">
-            <i class="fas fa-info-circle me-2"></i>No strategic steps defined yet. Click "Add Step" below to create one.
+            <i class="fas fa-info-circle me-2"></i>No planning steps defined yet. Click "Add Step" below to create one.
         </div>
     </div>
     {% endfor %}
@@ -122,31 +120,31 @@
 
 <div class="row mb-5">
     <div class="col-12">
-        <button class="btn btn-creative-outline btn-sm" onclick="showAddStepModal('strategic')">
-            <i class="fas fa-plus me-1"></i>Add Strategic Step
+        <button class="btn btn-creative-outline btn-sm" onclick="showAddStepModal('planning')">
+            <i class="fas fa-plus me-1"></i>Add Planning Step
         </button>
     </div>
 </div>
 
-<!-- TACTICAL / BUILD LAYER -->
+<!-- DEVELOPMENT LAYER -->
 <div class="row mb-4">
     <div class="col-12">
         <h4 class="mb-3">
             <span class="badge bg-warning text-dark px-3 py-2">
-                <i class="fas fa-tools me-2"></i>Tactical / Build Layer
+                <i class="fas fa-code me-2"></i>Development Layer
             </span>
         </h4>
     </div>
 </div>
 
 <div class="row">
-    {% for step in steps_by_layer.tactical %}
+    {% for step in steps_by_layer.development %}
     <div class="col-md-6 col-lg-4 mb-4">
         <div class="card h-100">
             <div class="card-header bg-white border-0 pt-3">
                 <h5 class="mb-0">
-                    <span class="workflow-badge badge-product">
-                        {{ forloop.counter|add:6 }}. {{ step.get_step_type_display }}
+                    <span class="workflow-badge badge-feature">
+                        {{ forloop.counter|add:planning_count }}. {{ step.get_step_type_display }}
                     </span>
                     {% if step.is_completed %}
                     <span class="badge bg-success float-end"><i class="fas fa-check"></i></span>
@@ -157,10 +155,10 @@
                 <h6 class="mb-2">{{ step.title }}</h6>
                 <small class="text-muted">{{ step.description|truncatewords:15 }}</small>
                 <div class="mt-3 d-flex gap-2">
-                    <a href="{% url 'product_management:product_step_chat' step.id %}" class="btn btn-sm btn-creative-outline">
+                    <a href="{% url 'product_management:feature_step_chat' step.id %}" class="btn btn-sm btn-creative-outline">
                         Open <i class="fas fa-arrow-right ms-1"></i>
                     </a>
-                    <button class="btn btn-sm btn-outline-danger delete-product-step-btn"
+                    <button class="btn btn-sm btn-outline-danger delete-feature-step-btn"
                             data-step-id="{{ step.id }}"
                             data-step-title="{{ step.title }}">
                         <i class="fas fa-trash"></i>
@@ -172,7 +170,7 @@
     {% empty %}
     <div class="col-12">
         <div class="alert alert-light">
-            <i class="fas fa-info-circle me-2"></i>No tactical steps defined yet. Click "Add Step" below to create one.
+            <i class="fas fa-info-circle me-2"></i>No development steps defined yet. Click "Add Step" below to create one.
         </div>
     </div>
     {% endfor %}
@@ -180,31 +178,31 @@
 
 <div class="row mb-5">
     <div class="col-12">
-        <button class="btn btn-creative-outline btn-sm" onclick="showAddStepModal('tactical')">
-            <i class="fas fa-plus me-1"></i>Add Tactical Step
+        <button class="btn btn-creative-outline btn-sm" onclick="showAddStepModal('development')">
+            <i class="fas fa-plus me-1"></i>Add Development Step
         </button>
     </div>
 </div>
 
-<!-- RELEASE / IMPACT LAYER -->
+<!-- DELIVERY LAYER -->
 <div class="row mb-4">
     <div class="col-12">
         <h4 class="mb-3">
             <span class="badge bg-success text-white px-3 py-2">
-                <i class="fas fa-rocket me-2"></i>Release / Impact Layer
+                <i class="fas fa-rocket me-2"></i>Delivery Layer
             </span>
         </h4>
     </div>
 </div>
 
 <div class="row">
-    {% for step in steps_by_layer.release %}
+    {% for step in steps_by_layer.delivery %}
     <div class="col-md-6 col-lg-4 mb-4">
         <div class="card h-100">
             <div class="card-header bg-white border-0 pt-3">
                 <h5 class="mb-0">
-                    <span class="workflow-badge badge-product">
-                        {{ forloop.counter|add:11 }}. {{ step.get_step_type_display }}
+                    <span class="workflow-badge badge-feature">
+                        {{ forloop.counter|add:planning_count|add:development_count }}. {{ step.get_step_type_display }}
                     </span>
                     {% if step.is_completed %}
                     <span class="badge bg-success float-end"><i class="fas fa-check"></i></span>
@@ -215,10 +213,10 @@
                 <h6 class="mb-2">{{ step.title }}</h6>
                 <small class="text-muted">{{ step.description|truncatewords:15 }}</small>
                 <div class="mt-3 d-flex gap-2">
-                    <a href="{% url 'product_management:product_step_chat' step.id %}" class="btn btn-sm btn-creative-outline">
+                    <a href="{% url 'product_management:feature_step_chat' step.id %}" class="btn btn-sm btn-creative-outline">
                         Open <i class="fas fa-arrow-right ms-1"></i>
                     </a>
-                    <button class="btn btn-sm btn-outline-danger delete-product-step-btn"
+                    <button class="btn btn-sm btn-outline-danger delete-feature-step-btn"
                             data-step-id="{{ step.id }}"
                             data-step-title="{{ step.title }}">
                         <i class="fas fa-trash"></i>
@@ -230,7 +228,7 @@
     {% empty %}
     <div class="col-12">
         <div class="alert alert-light">
-            <i class="fas fa-info-circle me-2"></i>No release steps defined yet. Click "Add Step" below to create one.
+            <i class="fas fa-info-circle me-2"></i>No delivery steps defined yet. Click "Add Step" below to create one.
         </div>
     </div>
     {% endfor %}
@@ -238,45 +236,45 @@
 
 <div class="row mb-5">
     <div class="col-12">
-        <button class="btn btn-creative-outline btn-sm" onclick="showAddStepModal('release')">
-            <i class="fas fa-plus me-1"></i>Add Release Step
+        <button class="btn btn-creative-outline btn-sm" onclick="showAddStepModal('delivery')">
+            <i class="fas fa-plus me-1"></i>Add Delivery Step
         </button>
     </div>
 </div>
 
 <!-- Add Step Modal -->
-<div class="modal fade" id="addStepModal" tabindex="-1">
+<div class="modal fade" id="addFeatureStepModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Add Product Step</h5>
+                <h5 class="modal-title">Add Feature Step</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <form id="addStepForm">
-                    <input type="hidden" id="stepLayer" name="layer">
+                <form id="addFeatureStepForm">
+                    <input type="hidden" id="featureStepLayer" name="layer">
 
                     <div class="mb-3">
-                        <label for="stepType" class="form-label">Step Type</label>
-                        <select class="form-select" id="stepType" name="step_type" required>
+                        <label for="featureStepType" class="form-label">Step Type</label>
+                        <select class="form-select" id="featureStepType" name="step_type" required>
                             <option value="">Select a step type...</option>
                         </select>
                     </div>
 
                     <div class="mb-3">
-                        <label for="stepTitle" class="form-label">Title</label>
-                        <input type="text" class="form-control" id="stepTitle" name="title" required>
+                        <label for="featureStepTitle" class="form-label">Title</label>
+                        <input type="text" class="form-control" id="featureStepTitle" name="title" required>
                     </div>
 
                     <div class="mb-3">
-                        <label for="stepDescription" class="form-label">Description</label>
-                        <textarea class="form-control" id="stepDescription" name="description" rows="3"></textarea>
+                        <label for="featureStepDescription" class="form-label">Description</label>
+                        <textarea class="form-control" id="featureStepDescription" name="description" rows="3"></textarea>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-creative" onclick="addStep()">Create Step</button>
+                <button type="button" class="btn btn-creative" onclick="addFeatureStep()">Create Step</button>
             </div>
         </div>
     </div>
@@ -287,75 +285,66 @@
 {% block extra_js %}
 <script>
 const workflowStepId = {{ workflow_step.id }};
-let currentLayer = '';
 
-const stepTypesByLayer = {
-    'strategic': [
-        { value: 'market_context', label: 'Market Context' },
-        { value: 'discovery_research', label: 'Discovery Research' },
-        { value: 'problem_definition', label: 'Problem Definition' },
-        { value: 'hypothesis_business_case', label: 'Hypothesis & Business Case' },
-        { value: 'success_metrics', label: 'Success Metrics & Guardrails' },
-        { value: 'stakeholder_buyin', label: 'Stakeholder Buy-In' }
+const featureStepTypesByLayer = {
+    'planning': [
+        { value: 'requirements', label: 'Requirements & Specifications' },
+        { value: 'user_story', label: 'User Story Definition' },
+        { value: 'acceptance_criteria', label: 'Acceptance Criteria' }
     ],
-    'tactical': [
-        { value: 'ideation_design', label: 'Ideation & Solution Design' },
-        { value: 'prd_requirements', label: 'PRD / Requirements Definition' },
-        { value: 'design_prototypes', label: 'Design Prototypes + Validation' },
-        { value: 'development', label: 'Development' },
-        { value: 'qa_uat', label: 'QA, UAT, and Staging' }
+    'development': [
+        { value: 'technical_design', label: 'Technical Design' },
+        { value: 'implementation', label: 'Implementation' },
+        { value: 'testing', label: 'Testing & QA' },
+        { value: 'code_review', label: 'Code Review' }
     ],
-    'release': [
-        { value: 'gtm_planning', label: 'Go-to-Market Planning' },
-        { value: 'release_execution', label: 'Release Execution' },
-        { value: 'post_launch', label: 'Post-Launch Validation' },
-        { value: 'retrospective', label: 'Retrospective & Learnings' }
+    'delivery': [
+        { value: 'documentation', label: 'Documentation' },
+        { value: 'deployment', label: 'Deployment' },
+        { value: 'validation', label: 'User Validation' }
     ]
 };
 
 function showAddStepModal(layer) {
-    currentLayer = layer;
-    document.getElementById('stepLayer').value = layer;
+    document.getElementById('featureStepLayer').value = layer;
 
-    // Populate step type dropdown based on layer
-    const stepTypeSelect = document.getElementById('stepType');
-    stepTypeSelect.innerHTML = '<option value="">Select a step type...</option>';
+    const select = document.getElementById('featureStepType');
+    select.innerHTML = '<option value="">Select a step type...</option>';
 
-    stepTypesByLayer[layer].forEach(stepType => {
+    featureStepTypesByLayer[layer].forEach(optionData => {
         const option = document.createElement('option');
-        option.value = stepType.value;
-        option.textContent = stepType.label;
-        stepTypeSelect.appendChild(option);
+        option.value = optionData.value;
+        option.textContent = optionData.label;
+        select.appendChild(option);
     });
 
-    // Show modal
-    const modal = new bootstrap.Modal(document.getElementById('addStepModal'));
+    const modal = new bootstrap.Modal(document.getElementById('addFeatureStepModal'));
     modal.show();
 }
 
-function addStep() {
-    const form = document.getElementById('addStepForm');
+function addFeatureStep() {
+    const form = document.getElementById('addFeatureStepForm');
     const formData = new FormData(form);
 
-    const data = {
+    const payload = {
         layer: formData.get('layer'),
         step_type: formData.get('step_type'),
         title: formData.get('title'),
         description: formData.get('description')
     };
 
-    if (!data.step_type || !data.title) {
+    if (!payload.layer || !payload.step_type || !payload.title) {
         alert('Please fill in all required fields.');
         return;
     }
 
-    fetch(`/product-management/product/${workflowStepId}/step/create/`, {
+    fetch(`/product-management/feature/${workflowStepId}/step/create/`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'X-CSRFToken': getCookie('csrftoken')
         },
-        body: JSON.stringify(data)
+        body: JSON.stringify(payload)
     })
     .then(response => response.json())
     .then(data => {
@@ -371,13 +360,12 @@ function addStep() {
     });
 }
 
-// Delete product
-document.querySelector('.delete-product-btn')?.addEventListener('click', function() {
-    const productId = this.getAttribute('data-product-id');
-    const productTitle = this.getAttribute('data-product-title');
+document.querySelector('.delete-feature-btn')?.addEventListener('click', function() {
+    const featureId = this.getAttribute('data-feature-id');
+    const featureTitle = this.getAttribute('data-feature-title');
 
-    if (confirm(`Are you sure you want to delete the product "${productTitle}"? This will delete all product steps and cannot be undone.`)) {
-        fetch(`/product-management/workflow/${productId}/delete/`, {
+    if (confirm(`Are you sure you want to delete the feature "${featureTitle}"? All associated feature steps will be removed.`)) {
+        fetch(`/product-management/workflow/${featureId}/delete/`, {
             method: 'POST',
             headers: {
                 'X-CSRFToken': getCookie('csrftoken')
@@ -397,19 +385,18 @@ document.querySelector('.delete-product-btn')?.addEventListener('click', functio
             }
         })
         .catch(error => {
-            alert('Error deleting product: ' + error);
+            alert('Error deleting feature: ' + error);
         });
     }
 });
 
-// Delete product step
-document.querySelectorAll('.delete-product-step-btn').forEach(button => {
+document.querySelectorAll('.delete-feature-step-btn').forEach(button => {
     button.addEventListener('click', function() {
         const stepId = this.getAttribute('data-step-id');
         const stepTitle = this.getAttribute('data-step-title');
 
         if (confirm(`Are you sure you want to delete "${stepTitle}"? This action cannot be undone.`)) {
-            fetch(`/product-management/product-step/${stepId}/delete/`, {
+            fetch(`/product-management/feature-step/${stepId}/delete/`, {
                 method: 'POST',
                 headers: {
                     'X-CSRFToken': getCookie('csrftoken')
@@ -425,7 +412,7 @@ document.querySelectorAll('.delete-product-step-btn').forEach(button => {
                 }
             })
             .catch(error => {
-                alert('Error deleting product step: ' + error);
+                alert('Error deleting feature step: ' + error);
             });
         }
     });

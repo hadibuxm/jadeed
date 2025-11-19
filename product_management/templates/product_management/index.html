@@ -276,7 +276,7 @@
                             <option value="">-- Select a Feature --</option>
                             {% for status, items in items_by_status.items %}
                                 {% for feature in items.features %}
-                                <option value="{{ feature.workflow_step.id }}" data-url="{% url 'product_management:workflow_chat' feature.workflow_step.id %}" data-title="{{ feature.workflow_step.title }}">
+                                <option value="{{ feature.workflow_step.id }}" data-url="{% url 'product_management:feature_steps' feature.workflow_step.id %}" data-title="{{ feature.workflow_step.title }}">
                                     {% if feature.workflow_step.reference_id %}[{{ feature.workflow_step.reference_id }}] {% endif %}{{ feature.workflow_step.title }}
                                     {% if feature.workflow_step.parent_step %}
                                         ({{ feature.workflow_step.parent_step.title }})
@@ -357,7 +357,7 @@
                         {% endif %}
                     </span>
                     <div class="kanban-card-actions">
-                        <a href="{% url 'product_management:workflow_chat' feature.workflow_step.id %}" title="Open">
+                        <a href="{% url 'product_management:feature_steps' feature.workflow_step.id %}" title="Open">
                             <i class="fas fa-external-link-alt"></i>
                         </a>
                     </div>
@@ -430,7 +430,7 @@
                         {% endif %}
                     </span>
                     <div class="kanban-card-actions">
-                        <a href="{% url 'product_management:workflow_chat' feature.workflow_step.id %}" title="Open">
+                        <a href="{% url 'product_management:feature_steps' feature.workflow_step.id %}" title="Open">
                             <i class="fas fa-external-link-alt"></i>
                         </a>
                     </div>
@@ -503,7 +503,7 @@
                         {% endif %}
                     </span>
                     <div class="kanban-card-actions">
-                        <a href="{% url 'product_management:workflow_chat' feature.workflow_step.id %}" title="Open">
+                        <a href="{% url 'product_management:feature_steps' feature.workflow_step.id %}" title="Open">
                             <i class="fas fa-external-link-alt"></i>
                         </a>
                     </div>
@@ -576,7 +576,7 @@
                         {% endif %}
                     </span>
                     <div class="kanban-card-actions">
-                        <a href="{% url 'product_management:workflow_chat' feature.workflow_step.id %}" title="Open">
+                        <a href="{% url 'product_management:feature_steps' feature.workflow_step.id %}" title="Open">
                             <i class="fas fa-external-link-alt"></i>
                         </a>
                     </div>

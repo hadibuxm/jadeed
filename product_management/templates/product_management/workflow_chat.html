@@ -72,7 +72,7 @@
                             {% if item.step_type == 'product' %}
                                 <a href="{% url 'product_management:product_steps' item.id %}">{{ item.title }}</a>
                             {% elif item.step_type == 'feature' %}
-                                <a href="{% url 'product_management:workflow_chat' item.id %}">{{ item.title }}</a>
+                                <a href="{% url 'product_management:feature_steps' item.id %}">{{ item.title }}</a>
                             {% else %}
                                 <a href="{% url 'product_management:workflow_chat' item.id %}">{{ item.title }}</a>
                             {% endif %}

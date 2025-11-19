@@ -40,4 +40,14 @@ urlpatterns = [
     path('product-step/<int:product_step_id>/document/', views.generate_product_step_document, name='generate_product_step_document'),
     path('product-step/<int:product_step_id>/complete/', views.complete_product_step, name='complete_product_step'),
     path('product-step/<int:product_step_id>/delete/', views.delete_product_step, name='delete_product_step'),
+
+    # Feature steps
+    path('feature/<int:step_id>/steps/', views.feature_steps, name='feature_steps'),
+    path('feature/<int:step_id>/step/create/', views.create_feature_step, name='create_feature_step'),
+    path('feature-step/<int:feature_step_id>/', views.feature_step_chat, name='feature_step_chat'),
+    path('feature-step/<int:feature_step_id>/message/', views.send_feature_step_message, name='send_feature_step_message'),
+    path('feature-step/<int:feature_step_id>/conversation/', views.get_feature_step_conversation, name='get_feature_step_conversation'),
+    path('feature-step/<int:feature_step_id>/document/', views.generate_feature_step_document, name='generate_feature_step_document'),
+    path('feature-step/<int:feature_step_id>/complete/', views.complete_feature_step, name='complete_feature_step'),
+    path('feature-step/<int:feature_step_id>/delete/', views.delete_feature_step, name='delete_feature_step'),
 ]

@@ -1,6 +1,6 @@
 {% extends 'product_management/base.html' %}
 
-{% block title %}{{ product_step.title }} - {{ product_step.get_step_type_display }}{% endblock %}
+{% block title %}{{ feature_step.title }} - {{ feature_step.get_step_type_display }}{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -20,12 +20,10 @@
         60%, 100% { content: '...'; }
     }
 
-    /* Smooth scrolling */
     #chatContainer {
         scroll-behavior: smooth;
     }
 
-    /* Message styling */
     .chat-message {
         animation: fadeIn 0.3s ease-in;
     }
@@ -41,7 +39,6 @@
         }
     }
 
-    /* Creative gradient text */
     .text-creative {
         background: linear-gradient(135deg, #8B5CF6 0%, #EC4899 50%, #F59E0B 100%);
         -webkit-background-clip: text;
@@ -72,14 +69,13 @@
                         {% endif %}
                     </li>
                 {% endfor %}
-                <li class="breadcrumb-item active" aria-current="page">{{ product_step.title }}</li>
+                <li class="breadcrumb-item active" aria-current="page">{{ feature_step.title }}</li>
             </ol>
         </nav>
     </div>
 </div>
 
 <div class="row">
-    <!-- Left Column: Step Information & Document -->
     <div class="col-lg-3">
         <div class="card mb-3">
             <div class="card-header bg-white">
@@ -87,30 +83,30 @@
             </div>
             <div class="card-body">
                 <div class="mb-2">
-                    <span class="workflow-badge badge-product">
-                        <i class="fas fa-tasks me-1"></i>
-                        {{ product_step.get_step_type_display }}
+                    <span class="workflow-badge badge-feature">
+                        <i class="fas fa-stream me-1"></i>
+                        {{ feature_step.get_step_type_display }}
                     </span>
-                    {% if product_step.is_completed %}
+                    {% if feature_step.is_completed %}
                     <span class="badge bg-success ms-2"><i class="fas fa-check me-1"></i>Completed</span>
                     {% endif %}
                 </div>
                 <div class="mb-2">
-                    <span class="badge {% if product_step.layer == 'strategic' %}bg-info{% elif product_step.layer == 'tactical' %}bg-warning text-dark{% else %}bg-success{% endif %}">
-                        {{ product_step.get_layer_display }}
+                    <span class="badge {% if feature_step.layer == 'planning' %}bg-info{% elif feature_step.layer == 'development' %}bg-warning text-dark{% else %}bg-success text-white{% endif %}">
+                        {{ feature_step.get_layer_display }}
                     </span>
                 </div>
-                <h6 class="mb-3">{{ product_step.title }}</h6>
-                <p class="small text-muted">{{ product_step.description }}</p>
+                <h6 class="mb-3">{{ feature_step.title }}</h6>
+                <p class="small text-muted">{{ feature_step.description }}</p>
                 <hr>
                 <div class="small">
                     <div class="mb-2">
                         <strong>Created:</strong><br>
-                        {{ product_step.created_at|date:"M d, Y H:i" }}
+                        {{ feature_step.created_at|date:"M d, Y H:i" }}
                     </div>
                     <div>
                         <strong>Last Updated:</strong><br>
-                        {{ product_step.updated_at|date:"M d, Y H:i" }}
+                        {{ feature_step.updated_at|date:"M d, Y H:i" }}
                     </div>
                 </div>
             </div>
@@ -122,7 +118,7 @@
             </div>
             <div class="card-body">
                 <div id="documentPreview" class="small" style="max-height: 300px; overflow-y: auto;"></div>
-                {% if project.github_repository %}
+                {% if project and project.github_repository %}
                 <button class="btn btn-sm btn-creative-outline w-100 mt-3" id="saveToGithubBtn">
                     <i class="fab fa-github me-1"></i>Save to GitHub
                 </button>
@@ -131,7 +127,6 @@
         </div>
     </div>
 
-    <!-- Middle Column: Chat Interface -->
     <div class="col-lg-6">
         <div class="card mb-4">
             <div class="card-header bg-white">
@@ -142,7 +137,7 @@
                     <div class="alert alert-info">
                         <i class="fas fa-robot me-2"></i>
                         <strong>AI Assistant Ready!</strong>
-                        <p class="mb-0 mt-2">I'll help you with {{ product_step.get_step_type_display|lower }}. Share your thoughts, and I'll guide you through the process with questions and suggestions.</p>
+                        <p class="mb-0 mt-2">I'll help you through {{ feature_step.get_step_type_display|lower }} for this feature. Share your context and I'll co-create the deliverable with you.</p>
                     </div>
                 </div>
             </div>
@@ -157,7 +152,6 @@
         </div>
     </div>
 
-    <!-- Right Column: Actions -->
     <div class="col-lg-3">
         <div class="card">
             <div class="card-header bg-white">
@@ -168,7 +162,7 @@
                     <i class="fas fa-file-alt me-1"></i>Generate Document
                 </button>
 
-                {% if not product_step.is_completed %}
+                {% if not feature_step.is_completed %}
                 <button class="btn btn-success w-100" id="completeStepBtn">
                     <i class="fas fa-check me-1"></i>Mark as Completed
                 </button>
@@ -181,29 +175,25 @@
 
 {% block extra_js %}
 <script>
-const productStepId = {{ product_step.id }};
+const featureStepId = {{ feature_step.id }};
 const chatMessages = document.getElementById('chatMessages');
 const chatContainer = document.getElementById('chatContainer');
 const messageInput = document.getElementById('messageInput');
 const chatForm = document.getElementById('chatForm');
 const sendBtn = document.getElementById('sendBtn');
 
-// Load conversation history
 loadConversation();
 
-// Send message with streaming
 chatForm.addEventListener('submit', function(e) {
     e.preventDefault();
     const message = messageInput.value.trim();
     if (!message) return;
 
-    // Add user message to chat
     addMessageToChat('user', message);
     messageInput.value = '';
     sendBtn.disabled = true;
     sendBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
 
-    // Create placeholder for assistant message
     const assistantMessageDiv = document.createElement('div');
     assistantMessageDiv.className = 'mb-3';
     const bubble = document.createElement('div');
@@ -218,8 +208,7 @@ chatForm.addEventListener('submit', function(e) {
     let fullMessage = '';
     let isFirstChunk = true;
 
-    // Send to server with streaming
-    fetch(`/product-management/product-step/${productStepId}/message/`, {
+    fetch(`/product-management/feature-step/${featureStepId}/message/`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -269,7 +258,7 @@ chatForm.addEventListener('submit', function(e) {
                                 sendBtn.innerHTML = '<i class="fas fa-paper-plane"></i>';
                             }
                         } catch (e) {
-                            // Ignore parsing errors for incomplete chunks
+                            // Ignore parsing errors
                         }
                     }
                 });
@@ -287,12 +276,11 @@ chatForm.addEventListener('submit', function(e) {
     });
 });
 
-// Generate Document
 document.getElementById('generateDocumentBtn').addEventListener('click', function() {
     this.disabled = true;
     this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating...';
 
-    fetch(`/product-management/product-step/${productStepId}/document/`, {
+    fetch(`/product-management/feature-step/${featureStepId}/document/`, {
         method: 'POST',
         headers: {
             'X-CSRFToken': getCookie('csrftoken')
@@ -317,15 +305,14 @@ document.getElementById('generateDocumentBtn').addEventListener('click', functio
     });
 });
 
-// Complete step
-{% if not product_step.is_completed %}
+{% if not feature_step.is_completed %}
 document.getElementById('completeStepBtn').addEventListener('click', function() {
     if (!confirm('Mark this step as completed?')) return;
 
     this.disabled = true;
     this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Completing...';
 
-    fetch(`/product-management/product-step/${productStepId}/complete/`, {
+    fetch(`/product-management/feature-step/${featureStepId}/complete/`, {
         method: 'POST',
         headers: {
             'X-CSRFToken': getCookie('csrftoken')
@@ -350,13 +337,12 @@ document.getElementById('completeStepBtn').addEventListener('click', function() 
 });
 {% endif %}
 
-// Save to GitHub
-{% if project.github_repository %}
+{% if project and project.github_repository %}
 document.getElementById('saveToGithubBtn')?.addEventListener('click', function() {
     this.disabled = true;
     this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
 
-    fetch(`/product-management/product-step/${productStepId}/document/?save_to_github=true`, {
+    fetch(`/product-management/feature-step/${featureStepId}/document/?save_to_github=true`, {
         method: 'POST',
         headers: {
             'X-CSRFToken': getCookie('csrftoken')
@@ -369,9 +355,6 @@ document.getElementById('saveToGithubBtn')?.addEventListener('click', function()
             alert(message);
             if (data.github_url) {
                 window.open(data.github_url, '_blank');
-            }
-            if (data.github_file_path) {
-                console.log('Document saved to:', data.github_file_path);
             }
             if (data.github_error) {
                 alert('Warning: ' + data.github_error);
@@ -391,15 +374,12 @@ document.getElementById('saveToGithubBtn')?.addEventListener('click', function()
 {% endif %}
 
 function loadConversation() {
-    fetch(`/product-management/product-step/${productStepId}/conversation/`)
+    fetch(`/product-management/feature-step/${featureStepId}/conversation/`)
     .then(response => response.json())
     .then(data => {
         if (data.success && data.conversation && data.conversation.length > 0) {
-            // Clear welcome message
             chatMessages.innerHTML = '';
-            data.conversation.forEach(msg => {
-                addMessageToChat(msg.role, msg.content, false);
-            });
+            data.conversation.forEach(msg => addMessageToChat(msg.role, msg.content, false));
         }
         if (data.document_content) {
             document.getElementById('documentPreview').innerHTML = marked.parse(data.document_content);
