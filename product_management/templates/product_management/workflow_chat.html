@@ -253,8 +253,16 @@
                         <i class="fas fa-code me-1"></i>Implement Feature with AI
                     </button>
                     <div id="codeChangeStatus" class="mt-2" style="display: none;">
-                        <div class="alert alert-info mb-0" id="statusMessage">
+                        <div class="alert alert-info mb-2" id="statusMessage">
                             <small id="statusText"></small>
+                        </div>
+                        <div class="card border-secondary" id="codeChangeLogCard" style="display: none;">
+                            <div class="card-body py-2">
+                                <small class="text-muted d-block mb-1 fw-semibold">
+                                    Execution Log
+                                </small>
+                                <pre class="small mb-0" id="codeChangeLogContent" style="white-space: pre-wrap; max-height: 200px; overflow-y: auto;"></pre>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -311,6 +319,8 @@ const emptyDescriptionCopy = 'No description yet. Use "Edit Description" to add 
 let descriptionCache = descriptionInput ? descriptionInput.value : '';
 const aiProcessingModalElement = document.getElementById('aiProcessingModal');
 const aiProcessingModal = aiProcessingModalElement ? new bootstrap.Modal(aiProcessingModalElement) : null;
+const codeChangeLogCard = document.getElementById('codeChangeLogCard');
+const codeChangeLogContent = document.getElementById('codeChangeLogContent');
 
 function showAiProcessingModal() {
     aiProcessingModal?.show();
@@ -318,6 +328,17 @@ function showAiProcessingModal() {
 
 function hideAiProcessingModal() {
     aiProcessingModal?.hide();
+}
+
+function combineExecutionAndCodexLogs(executionLog, codexLogs) {
+    const sections = [];
+    if (executionLog && executionLog.trim()) {
+        sections.push(executionLog.trim());
+    }
+    if (codexLogs && codexLogs.trim()) {
+        sections.push('=== Codex CLI Output ===\n' + codexLogs.trim());
+    }
+    return sections.join('\n\n');
 }
 
 // Load conversation history
@@ -590,6 +611,10 @@ function submitCodeChangeRequest(changeRequest) {
             statusContainer.style.display = 'block';
             statusText.textContent = 'Processing code changes...';
         }
+        if (codeChangeLogCard && codeChangeLogContent) {
+            codeChangeLogCard.style.display = 'none';
+            codeChangeLogContent.textContent = '';
+        }
         pollCodeChangeStatus(data.request_id);
     });
 }
@@ -603,25 +628,43 @@ function pollCodeChangeStatus(requestId) {
                 const status = data.status;
                 const statusElement = document.getElementById('statusText');
 
-                statusElement.textContent = `Status: ${status}`;
+                if (statusElement) {
+                    statusElement.textContent = `Status: ${status}`;
+                }
 
-                if (data.execution_log) {
-                    const lastLine = data.execution_log.trim().split('\n').pop();
-                    statusElement.textContent += ` - ${lastLine}`;
+                const combinedLogs = combineExecutionAndCodexLogs(
+                    data.execution_log,
+                    data.codex_logs
+                );
+
+                if (combinedLogs) {
+                    if (statusElement) {
+                        const lastLine = combinedLogs.trim().split('\n').pop();
+                        statusElement.textContent += ` - ${lastLine}`;
+                    }
+                    if (codeChangeLogContent && codeChangeLogCard) {
+                        codeChangeLogContent.textContent = combinedLogs;
+                        codeChangeLogCard.style.display = 'block';
+                        codeChangeLogContent.scrollTop = codeChangeLogContent.scrollHeight;
+                    }
                 }
 
                 // Stop polling if completed or failed
                 if (status === 'completed') {
                     clearInterval(statusInterval);
                     document.getElementById('statusMessage').className = 'alert alert-success mb-0';
-                    statusElement.textContent = 'Code changes completed successfully!';
-                    if (data.branch_name) {
-                        statusElement.textContent += ` Branch: ${data.branch_name}`;
+                    if (statusElement) {
+                        statusElement.textContent = 'Code changes completed successfully!';
+                        if (data.branch_name) {
+                            statusElement.textContent += ` Branch: ${data.branch_name}`;
+                        }
                     }
                 } else if (status === 'failed') {
                     clearInterval(statusInterval);
                     document.getElementById('statusMessage').className = 'alert alert-danger mb-0';
-                    statusElement.textContent = 'Code changes failed: ' + (data.error_message || 'Unknown error');
+                    if (statusElement) {
+                        statusElement.textContent = 'Code changes failed: ' + (data.error_message || 'Unknown error');
+                    }
                 }
             }
         })

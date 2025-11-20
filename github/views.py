@@ -350,6 +350,7 @@ def get_code_change_status(request, request_id):
             'branch_name': code_change_request.branch_name,
             'error_message': code_change_request.error_message,
             'execution_log': code_change_request.execution_log or '',
+            'codex_logs': code_change_request.codex_logs or '',
             'created_at': code_change_request.created_at.isoformat(),
             'completed_at': code_change_request.completed_at.isoformat() if code_change_request.completed_at else None
         })
@@ -365,4 +366,3 @@ def get_code_change_status(request, request_id):
             'success': False,
             'error': str(e)
         }, status=500)
-

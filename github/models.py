@@ -77,6 +77,7 @@ class CodeChangeRequest(models.Model):
     branch_name = models.CharField(max_length=255, blank=True, null=True)
     error_message = models.TextField(blank=True, null=True)
     execution_log = models.TextField(blank=True, null=True, help_text="Detailed execution log")
+    codex_logs = models.TextField(blank=True, null=True, help_text="Raw Codex CLI output")
     created_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(blank=True, null=True)
 
@@ -93,6 +94,21 @@ class CodeChangeRequest(models.Model):
         else:
             self.execution_log = log_entry
         self.save()
+
+    def set_codex_logs(self, stdout=None, stderr=None):
+        """Persist raw Codex CLI output for later inspection."""
+        log_sections = []
+        if stdout:
+            log_sections.append(f"STDOUT:\n{stdout.strip()}")
+        if stderr:
+            log_sections.append(f"STDERR:\n{stderr.strip()}")
+
+        combined_logs = "\n\n".join(filter(None, log_sections)).strip()
+
+        # Avoid overwriting with empty strings
+        if combined_logs:
+            self.codex_logs = combined_logs
+            self.save(update_fields=['codex_logs'])
 
     class Meta:
         verbose_name = "Code Change Request"

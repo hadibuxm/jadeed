@@ -42,6 +42,11 @@ class CodeChangeService:
         log_method = getattr(logger, level, logger.info)
         log_method(f"[Request {self.change_request_obj.id}] {message}")
 
+    def _record_codex_logs(self, stdout=None, stderr=None):
+        """Persist raw stdout/stderr from Codex CLI for troubleshooting."""
+        if stdout or stderr:
+            self.change_request_obj.set_codex_logs(stdout, stderr)
+
     def execute(self):
         """
         Execute the complete workflow:
@@ -173,8 +178,10 @@ class CodeChangeService:
                 cwd=self.repo_path,
                 capture_output=True,
                 text=True,
-                timeout=600  # 5 minute timeout
+                timeout=1800  # 5 minute timeout
             )
+
+            self._record_codex_logs(process.stdout, process.stderr)
 
             # Check if Codex execution was successful
             if process.returncode != 0:
@@ -218,8 +225,9 @@ class CodeChangeService:
                 self._log("No file changes detected", level='warning')
                 raise Exception("No changes were made by Codex. The task may not have been understood or applicable.")
 
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as exc:
             self._log("Codex execution timed out after 5 minutes", level='error')
+            self._record_codex_logs(getattr(exc, 'output', None), getattr(exc, 'stderr', None))
             raise Exception("Codex execution timed out after 5 minutes")
         except Exception as e:
             self._log(f"Failed to apply code changes: {str(e)}", level='error')

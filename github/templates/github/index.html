@@ -223,6 +223,17 @@
 
 {% block extra_js %}
 <script>
+function combineExecutionAndCodexLogs(executionLog, codexLogs) {
+  const sections = [];
+  if (executionLog && executionLog.trim()) {
+    sections.push(executionLog.trim());
+  }
+  if (codexLogs && codexLogs.trim()) {
+    sections.push('=== Codex CLI Output ===\n' + codexLogs.trim());
+  }
+  return sections.join('\n\n');
+}
+
 document.addEventListener('DOMContentLoaded', function() {
   console.log('Code change form handler loaded');
   const forms = document.querySelectorAll('.code-change-form');
@@ -296,8 +307,13 @@ document.addEventListener('DOMContentLoaded', function() {
                   const branchName = statusData.branch_name || 'N/A';
 
                   // Update logs
-                  if (statusData.execution_log) {
-                    logContent.textContent = statusData.execution_log;
+                  const combinedLogText = combineExecutionAndCodexLogs(
+                    statusData.execution_log,
+                    statusData.codex_logs
+                  );
+
+                  if (combinedLogText) {
+                    logContent.textContent = combinedLogText;
                     // Auto-scroll to bottom
                     logContent.parentElement.scrollTop = logContent.parentElement.scrollHeight;
                   }

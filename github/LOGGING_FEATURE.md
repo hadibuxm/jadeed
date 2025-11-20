@@ -75,6 +75,7 @@ Returns:
   "status": "processing",
   "branch_name": "ai-changes-20250107-123456",
   "execution_log": "[timestamp] log entries...",
+  "codex_logs": "STDOUT/STDERR from Codex CLI",
   "error_message": null,
   "created_at": "2025-01-07T12:34:56Z",
   "completed_at": null
