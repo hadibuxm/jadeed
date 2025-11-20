@@ -294,6 +294,7 @@ class WorkflowActionLog(models.Model):
         ('readme_generated', 'README Generated'),
         ('step_completed', 'Step Completed'),
         ('code_change_requested', 'Code Change Requested'),
+        ('code_change_completed', 'Code Change Completed'),
         ('document_saved', 'Document Saved'),
     ]
 

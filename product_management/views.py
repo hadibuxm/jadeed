@@ -13,7 +13,7 @@ from github.models import GitHubConnection, GitHubRepository
 from .models import (
     Project, WorkflowStep, Vision, Initiative,
     Portfolio, Product, Feature, ProductStep, FeatureStep, RecentItem,
-    WorkflowComment
+    WorkflowComment, WorkflowActionLog
 )
 from .ai_service import ProductDiscoveryAI
 import requests
@@ -43,16 +43,18 @@ def _format_user_display(user):
 
 
 def _serialize_action_log(action):
+    metadata = action.metadata or {}
+    display_user = metadata.get('display_user')
     created = timezone.localtime(action.created_at)
     return {
         'id': action.id,
         'action_type': action.action_type,
         'action_label': action.get_action_type_display(),
-        'user': _format_user_display(action.user),
+        'user': display_user or _format_user_display(action.user),
         'description': action.description,
         'created_at': created.strftime('%b %d, %Y %H:%M'),
         'created_at_iso': created.isoformat(),
-        'metadata': action.metadata or {},
+        'metadata': metadata,
     }
 
 
@@ -675,6 +677,53 @@ def workflow_documents(request, step_id):
     documents = workflow_step.documents.select_related('created_by').order_by('-created_at')
     serialized = [_serialize_document(doc) for doc in documents]
     return JsonResponse({'success': True, 'documents': serialized})
+
+
+@login_required
+@require_POST
+def create_workflow_action(request, step_id):
+    """Allow clients to add custom action log entries (e.g., AI events)."""
+    workflow_step = get_object_or_404(WorkflowStep, id=step_id)
+
+    if workflow_step.project:
+        if workflow_step.project.user != request.user:
+            return JsonResponse({'success': False, 'error': 'Workflow step not found.'}, status=404)
+    elif workflow_step.user and workflow_step.user != request.user:
+        return JsonResponse({'success': False, 'error': 'Workflow step not found.'}, status=404)
+
+    try:
+        data = json.loads(request.body)
+    except json.JSONDecodeError:
+        return JsonResponse({'success': False, 'error': 'Invalid JSON.'}, status=400)
+
+    action_type = data.get('action_type')
+    description = (data.get('description') or '').strip()
+    metadata = data.get('metadata') or {}
+    display_user = data.get('display_user')
+    as_system = data.get('as_system', False)
+
+    if not isinstance(metadata, dict):
+        metadata = {}
+
+    valid_action_types = {choice[0] for choice in WorkflowActionLog.ACTION_CHOICES}
+    if action_type not in valid_action_types:
+        return JsonResponse({'success': False, 'error': 'Invalid action type.'}, status=400)
+
+    if display_user:
+        metadata = dict(metadata)
+        metadata['display_user'] = display_user
+
+    log_entry = workflow_step.log_action(
+        action_type=action_type,
+        user=None if as_system else request.user,
+        description=description,
+        metadata=metadata
+    )
+
+    return JsonResponse({
+        'success': True,
+        'action': _serialize_action_log(log_entry)
+    })
 
 
 @login_required

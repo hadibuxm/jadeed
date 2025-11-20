@@ -431,6 +431,11 @@ const initialDocuments = {{ documents_json|default:'[]'|safe }};
 let actionHistory = Array.isArray(initialActions) ? initialActions : [];
 let documentHistory = Array.isArray(initialDocuments) ? initialDocuments : [];
 let activeDocumentId = documentHistory.length ? documentHistory[0].id : null;
+const AI_ASSISTANT_LABEL = 'AI Assistant';
+const ACTION_LABELS = {
+    code_change_requested: 'Code Change Requested',
+    code_change_completed: 'Code Change Completed'
+};
 
 function showAiProcessingModal() {
     aiProcessingModal?.show();
@@ -777,6 +782,11 @@ function submitCodeChangeRequest(changeRequest) {
             throw new Error(data.error || 'Failed to submit code change request.');
         }
         alert('Code change request submitted successfully!');
+        logAiWorkflowAction(
+            'code_change_requested',
+            'AI code generation request submitted for this feature.',
+            { request_id: data.request_id }
+        );
         const statusContainer = document.getElementById('codeChangeStatus');
         const statusText = document.getElementById('statusText');
         if (statusContainer && statusText) {
@@ -792,6 +802,8 @@ function submitCodeChangeRequest(changeRequest) {
 }
 
 function pollCodeChangeStatus(requestId) {
+    let hasLoggedCompletion = false;
+    let hasLoggedFailure = false;
     const statusInterval = setInterval(() => {
         fetch(`/github/code-change-status/${requestId}/`)
         .then(response => response.json())
@@ -831,11 +843,31 @@ function pollCodeChangeStatus(requestId) {
                             statusElement.textContent += ` Branch: ${data.branch_name}`;
                         }
                     }
+                    if (!hasLoggedCompletion) {
+                        hasLoggedCompletion = true;
+                        const branchName = data.branch_name;
+                        const description = branchName
+                            ? `AI pushed code changes to branch ${branchName}.`
+                            : 'AI code changes completed successfully.';
+                        logAiWorkflowAction(
+                            'code_change_completed',
+                            description,
+                            { branch_name: branchName, request_id: requestId }
+                        );
+                    }
                 } else if (status === 'failed') {
                     clearInterval(statusInterval);
                     document.getElementById('statusMessage').className = 'alert alert-danger mb-0';
                     if (statusElement) {
                         statusElement.textContent = 'Code changes failed: ' + (data.error_message || 'Unknown error');
+                    }
+                    if (!hasLoggedFailure) {
+                        hasLoggedFailure = true;
+                        logAiWorkflowAction(
+                            'code_change_completed',
+                            'AI code change request failed.',
+                            { request_id: requestId, error: data.error_message }
+                        );
                     }
                 }
             }
@@ -1140,6 +1172,76 @@ function updateDocumentCount(count) {
     if (documentCountBadge) {
         documentCountBadge.textContent = count;
     }
+}
+
+function formatTimestamp(date = new Date()) {
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const month = monthNames[date.getMonth()];
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return `${month} ${day}, ${date.getFullYear()} ${hours}:${minutes}`;
+}
+
+function prependActionHistoryEntry(action) {
+    if (!Array.isArray(actionHistory)) {
+        actionHistory = [];
+    }
+    actionHistory.unshift(action);
+    renderActionHistory();
+}
+
+function createWorkflowActionEntry(actionType, description, metadata = {}, options = {}) {
+    const payload = {
+        action_type: actionType,
+        description,
+        metadata
+    };
+    if (options.asSystem) {
+        payload.as_system = true;
+    }
+    if (options.displayUser) {
+        payload.display_user = options.displayUser;
+    }
+
+    return fetch(`/product-management/workflow/${stepId}/actions/log/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify(payload)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.action) {
+            prependActionHistoryEntry(data.action);
+            return data.action;
+        }
+        throw new Error(data.error || 'Unable to log action.');
+    })
+    .catch(error => {
+        console.error('Failed to log workflow action:', error);
+        const fallbackAction = {
+            id: `temp-${Date.now()}`,
+            action_type: actionType,
+            action_label: ACTION_LABELS[actionType] || 'Action',
+            user: options.displayUser || (options.asSystem ? AI_ASSISTANT_LABEL : 'You'),
+            description,
+            created_at: formatTimestamp(),
+            created_at_iso: new Date().toISOString(),
+            metadata
+        };
+        prependActionHistoryEntry(fallbackAction);
+        return null;
+    });
+}
+
+function logAiWorkflowAction(actionType, description, metadata = {}) {
+    return createWorkflowActionEntry(actionType, description, metadata, {
+        asSystem: true,
+        displayUser: AI_ASSISTANT_LABEL
+    });
 }
 
 function handleDocumentUpdate(document) {
