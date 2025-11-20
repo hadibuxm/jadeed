@@ -223,6 +223,76 @@
                 </form>
             </div>
         </div>
+
+        <div class="card mb-4">
+            <div class="card-header bg-white">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0"><i class="fas fa-comment-dots me-2"></i>Comments</h6>
+                    <span class="badge bg-light text-muted" id="commentCountBadge">{{ comment_count }}</span>
+                </div>
+            </div>
+            <div class="card-body">
+                <div id="commentEmptyState"
+                     class="text-muted small fst-italic"
+                     {% if comment_count %}style="display:none;"{% endif %}>
+                    No comments yet. Share the first thought about this {{ workflow_step.get_step_type_display|lower }}.
+                </div>
+                <ul class="list-group list-group-flush" id="commentList"></ul>
+            </div>
+            <div class="card-footer bg-white">
+                <form id="commentForm">
+                    <div class="input-group">
+                        <textarea class="form-control"
+                                  id="commentInput"
+                                  rows="2"
+                                  maxlength="2000"
+                                  placeholder="Add a comment..."></textarea>
+                        <button type="submit"
+                                class="btn btn-creative"
+                                id="commentSubmitBtn">
+                            <i class="fas fa-paper-plane me-1"></i>Post
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        
+
+        <div class="card mb-4">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="fas fa-file-alt me-2"></i>Generated Documents</h6>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge bg-light text-muted" id="documentCountBadge">{{ document_count }}</span>
+                    <button class="btn btn-sm btn-outline-secondary" id="refreshDocumentsBtn" title="Refresh documents">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-lg-5 mb-3 mb-lg-0">
+                        <div class="list-group small" id="documentList" role="tablist"></div>
+                        <div id="documentEmptyState"
+                             class="text-muted small fst-italic mt-2"
+                             {% if document_count %}style="display:none;"{% endif %}>
+                            No documents generated yet. Create a README to populate this list.
+                        </div>
+                    </div>
+                    <div class="col-lg-7">
+                        <div class="border rounded p-3 h-100">
+                            <div id="documentPreviewEmpty"
+                                 class="text-muted small fst-italic"
+                                 {% if document_count %}style="display:none;"{% endif %}>
+                                Select a document to preview it here.
+                            </div>
+                            <div id="documentPreview" class="small" style="max-height: 350px; overflow-y: auto; display: none;"></div>
+                            <div id="documentMeta" class="text-muted small mt-2" style="display: none;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Right Column: Actions -->
@@ -282,6 +352,23 @@
                 {% endif %}
             </div>
         </div>
+        <br>
+        <div class="card">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <h6 class="mb-0"><i class="fas fa-history me-2"></i>Action History</h6>
+                <button class="btn btn-sm btn-outline-secondary" id="refreshActionsBtn">
+                    <i class="fas fa-sync-alt me-1"></i>Refresh
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="actionHistoryEmpty"
+                     class="text-muted small fst-italic"
+                     style="display: none;">
+                    No actions recorded yet.
+                </div>
+                <ul class="list-group list-group-flush" id="actionHistoryList"></ul>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -299,6 +386,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script>
 const stepId = {{ workflow_step.id }};
 const chatMessages = document.getElementById('chatMessages');
@@ -321,6 +409,28 @@ const aiProcessingModalElement = document.getElementById('aiProcessingModal');
 const aiProcessingModal = aiProcessingModalElement ? new bootstrap.Modal(aiProcessingModalElement) : null;
 const codeChangeLogCard = document.getElementById('codeChangeLogCard');
 const codeChangeLogContent = document.getElementById('codeChangeLogContent');
+const commentList = document.getElementById('commentList');
+const commentEmptyState = document.getElementById('commentEmptyState');
+const commentCountBadge = document.getElementById('commentCountBadge');
+const commentForm = document.getElementById('commentForm');
+const commentInput = document.getElementById('commentInput');
+const commentSubmitBtn = document.getElementById('commentSubmitBtn');
+const initialComments = {{ comments_json|default:'[]'|safe }};
+const actionHistoryList = document.getElementById('actionHistoryList');
+const actionHistoryEmpty = document.getElementById('actionHistoryEmpty');
+const refreshActionsBtn = document.getElementById('refreshActionsBtn');
+const documentList = document.getElementById('documentList');
+const documentEmptyState = document.getElementById('documentEmptyState');
+const documentPreview = document.getElementById('documentPreview');
+const documentPreviewEmpty = document.getElementById('documentPreviewEmpty');
+const documentMeta = document.getElementById('documentMeta');
+const documentCountBadge = document.getElementById('documentCountBadge');
+const refreshDocumentsBtn = document.getElementById('refreshDocumentsBtn');
+const initialActions = {{ actions_json|default:'[]'|safe }};
+const initialDocuments = {{ documents_json|default:'[]'|safe }};
+let actionHistory = Array.isArray(initialActions) ? initialActions : [];
+let documentHistory = Array.isArray(initialDocuments) ? initialDocuments : [];
+let activeDocumentId = documentHistory.length ? documentHistory[0].id : null;
 
 function showAiProcessingModal() {
     aiProcessingModal?.show();
@@ -340,6 +450,14 @@ function combineExecutionAndCodexLogs(executionLog, codexLogs) {
     }
     return sections.join('\n\n');
 }
+
+if (Array.isArray(initialComments) && initialComments.length) {
+    initialComments.forEach(comment => addCommentToList(comment));
+}
+updateCommentEmptyState();
+renderActionHistory();
+renderDocumentList(activeDocumentId);
+updateDocumentCount(documentHistory.length);
 
 // Load conversation history
 loadConversation();
@@ -440,6 +558,52 @@ chatForm.addEventListener('submit', function(e) {
     });
 });
 
+commentForm?.addEventListener('submit', function(e) {
+    e.preventDefault();
+    if (!commentInput || !commentSubmitBtn) {
+        return;
+    }
+    const content = commentInput.value.trim();
+    if (!content) {
+        commentInput.focus();
+        return;
+    }
+
+    const originalLabel = commentSubmitBtn.innerHTML;
+    commentSubmitBtn.disabled = true;
+    commentSubmitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Posting...';
+
+    fetch(`/product-management/workflow/${stepId}/comments/`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': getCookie('csrftoken')
+        },
+        body: JSON.stringify({ content })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success && data.comment) {
+            addCommentToList(data.comment, true);
+            commentInput.value = '';
+            commentInput.focus();
+            if (typeof data.count === 'number') {
+                updateCommentCount(data.count);
+            }
+            refreshActionHistory();
+        } else {
+            alert(data.error || 'Unable to add comment.');
+        }
+    })
+    .catch(error => {
+        alert('Error adding comment: ' + error);
+    })
+    .finally(() => {
+        commentSubmitBtn.disabled = false;
+        commentSubmitBtn.innerHTML = originalLabel;
+    });
+});
+
 // Generate README
 document.getElementById('generateReadmeBtn').addEventListener('click', function() {
     this.disabled = true;
@@ -456,6 +620,10 @@ document.getElementById('generateReadmeBtn').addEventListener('click', function(
         if (data.success) {
             updateReadmePreview(data.readme_content);
             alert('README generated successfully!');
+            if (data.document) {
+                handleDocumentUpdate(data.document);
+            }
+            refreshActionHistory();
         } else {
             alert('Error: ' + data.error);
         }
@@ -523,9 +691,9 @@ document.getElementById('requestCodeChangeBtn')?.addEventListener('click', funct
     showAiProcessingModal();
 
     ensureReadmeSynced()
-        .then(readmeContent => {
+        .then(data => {
             button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Requesting...';
-            const changeRequest = buildCodeChangeRequest(readmeContent);
+            const changeRequest = buildCodeChangeRequest(data.readme_content);
             return submitCodeChangeRequest(changeRequest);
         })
         .then(() => {
@@ -559,7 +727,11 @@ function ensureReadmeSynced() {
         if (data.readme_content) {
             updateReadmePreview(data.readme_content);
         }
-        return data.readme_content;
+        if (data.document) {
+            handleDocumentUpdate(data.document);
+            refreshActionHistory();
+        }
+        return data;
     });
 }
 
@@ -805,6 +977,181 @@ function updateReadmePreview(content) {
     }
 }
 
+function updateCommentEmptyState() {
+    if (!commentEmptyState || !commentList) {
+        return;
+    }
+    commentEmptyState.style.display = commentList.children.length ? 'none' : 'block';
+}
+
+function updateCommentCount(count) {
+    if (!commentCountBadge) {
+        return;
+    }
+    commentCountBadge.textContent = count;
+}
+
+function formatCommentBody(text) {
+    const safe = escapeHtml(text || '');
+    return safe.replace(/\n/g, '<br>');
+}
+
+function addCommentToList(comment, prepend = false) {
+    if (!commentList || !comment) {
+        return;
+    }
+    const item = document.createElement('li');
+    item.className = 'list-group-item px-0';
+    const author = escapeHtml(comment.user || 'User');
+    const timestamp = escapeHtml(comment.created_at || '');
+    const content = formatCommentBody(comment.content || '');
+
+    item.innerHTML = `
+        <div class="d-flex justify-content-between align-items-start">
+            <div class="fw-semibold">${author}</div>
+            <div class="text-muted small ms-2">${timestamp}</div>
+        </div>
+        <div class="small mt-2">${content}</div>
+    `;
+
+    if (prepend && commentList.firstChild) {
+        commentList.prepend(item);
+    } else if (prepend) {
+        commentList.appendChild(item);
+    } else {
+        commentList.appendChild(item);
+    }
+
+    updateCommentEmptyState();
+}
+
+function renderActionHistory() {
+    if (!actionHistoryList || !actionHistoryEmpty) {
+        return;
+    }
+    actionHistoryList.innerHTML = '';
+    if (!Array.isArray(actionHistory) || actionHistory.length === 0) {
+        actionHistoryEmpty.style.display = 'block';
+        return;
+    }
+    actionHistoryEmpty.style.display = 'none';
+    actionHistory.forEach(action => {
+        const item = document.createElement('li');
+        item.className = 'list-group-item px-0';
+        const title = escapeHtml(action.action_label || action.action_type);
+        const timestamp = escapeHtml(action.created_at || '');
+        const user = escapeHtml(action.user || 'System');
+        const description = escapeHtml(action.description || '');
+        item.innerHTML = `
+            <div class="d-flex justify-content-between align-items-start">
+                <div class="fw-semibold">${title}</div>
+                <div class="text-muted small ms-2">${timestamp}</div>
+            </div>
+            <div class="small text-muted">by ${user}</div>
+            ${description ? `<div class="small mt-1">${description}</div>` : ''}
+        `;
+        actionHistoryList.appendChild(item);
+    });
+}
+
+function refreshActionHistory() {
+    return fetch(`/product-management/workflow/${stepId}/actions/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                actionHistory = data.actions || [];
+                renderActionHistory();
+            }
+        })
+        .catch(error => console.error('Failed to refresh action history:', error));
+}
+
+refreshActionsBtn?.addEventListener('click', function() {
+    if (this.disabled) return;
+    this.disabled = true;
+    const original = this.innerHTML;
+    this.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Refreshing';
+    refreshActionHistory()
+        .finally(() => {
+            this.disabled = false;
+            this.innerHTML = original;
+        });
+});
+
+function renderDocumentList(selectedId = null) {
+    if (!documentList) {
+        return;
+    }
+    documentList.innerHTML = '';
+    if (!Array.isArray(documentHistory) || documentHistory.length === 0) {
+        if (documentEmptyState) documentEmptyState.style.display = 'block';
+        if (documentPreview) documentPreview.style.display = 'none';
+        if (documentMeta) documentMeta.style.display = 'none';
+        if (documentPreviewEmpty) documentPreviewEmpty.style.display = 'block';
+        return;
+    }
+    if (documentEmptyState) documentEmptyState.style.display = 'none';
+    if (!selectedId) {
+        activeDocumentId = documentHistory[0].id;
+    } else {
+        activeDocumentId = selectedId;
+    }
+
+    documentHistory.forEach(doc => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `list-group-item list-group-item-action d-flex justify-content-between align-items-start ${doc.id === activeDocumentId ? 'active' : ''}`;
+        button.innerHTML = `
+            <div>
+                <div class="fw-semibold">${escapeHtml(doc.title)}</div>
+                <div class="small">${escapeHtml(doc.document_label)} • ${escapeHtml(doc.created_at)}</div>
+            </div>
+            <i class="fas fa-chevron-right small opacity-50 ms-2"></i>
+        `;
+        button.addEventListener('click', () => {
+            activeDocumentId = doc.id;
+            renderDocumentList(activeDocumentId);
+        });
+        documentList.appendChild(button);
+    });
+
+    displayActiveDocument();
+}
+
+function displayActiveDocument() {
+    if (!documentPreview || !documentMeta) {
+        return;
+    }
+    const doc = documentHistory.find(d => d.id === activeDocumentId);
+    if (!doc) {
+        documentPreview.style.display = 'none';
+        documentMeta.style.display = 'none';
+        if (documentPreviewEmpty) documentPreviewEmpty.style.display = 'block';
+        return;
+    }
+    if (documentPreviewEmpty) documentPreviewEmpty.style.display = 'none';
+    documentPreview.innerHTML = marked.parse(doc.content || '');
+    documentPreview.style.display = 'block';
+    documentMeta.textContent = `Generated by ${doc.user} (${doc.source}) on ${doc.created_at}`;
+    documentMeta.style.display = 'block';
+}
+
+function updateDocumentCount(count) {
+    if (documentCountBadge) {
+        documentCountBadge.textContent = count;
+    }
+}
+
+function handleDocumentUpdate(document) {
+    if (!document) {
+        return;
+    }
+    documentHistory = documentHistory.filter(doc => doc.id !== document.id);
+    documentHistory.unshift(document);
+    updateDocumentCount(documentHistory.length);
+    renderDocumentList(document.id);
+}
+
 editDescriptionBtn?.addEventListener('click', () => {
     toggleDescriptionEditor(true);
 });
@@ -844,6 +1191,7 @@ saveDescriptionBtn?.addEventListener('click', function() {
             }
             toggleDescriptionEditor(false);
             alert('Description updated successfully!');
+            refreshActionHistory();
         } else {
             alert('Error: ' + (data.error || 'Unable to update description.'));
         }
@@ -904,5 +1252,4 @@ function getCookie(name) {
     return cookieValue;
 }
 </script>
-<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 {% endblock %}

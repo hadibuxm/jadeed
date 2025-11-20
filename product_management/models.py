@@ -224,6 +224,29 @@ class WorkflowStep(models.Model):
             for msg in self.conversation_history
         ]
 
+    def log_action(self, action_type, user=None, description='', metadata=None):
+        """Persist an action entry tied to this workflow step."""
+        if metadata is None:
+            metadata = {}
+        return WorkflowActionLog.objects.create(
+            workflow_step=self,
+            user=user,
+            action_type=action_type,
+            description=description,
+            metadata=metadata,
+        )
+
+    def save_document_version(self, title, content, document_type='readme', user=None, source='ai'):
+        """Store a generated document snapshot for future reference."""
+        return WorkflowDocument.objects.create(
+            workflow_step=self,
+            document_type=document_type,
+            title=title or f"{self.get_step_type_display()} Document",
+            content=content,
+            created_by=user,
+            source=source,
+        )
+
     class Meta:
         verbose_name = "Workflow Step"
         verbose_name_plural = "Workflow Steps"
@@ -231,6 +254,115 @@ class WorkflowStep(models.Model):
         indexes = [
             models.Index(fields=['project', 'step_type']),
             models.Index(fields=['parent_step']),
+        ]
+
+
+class WorkflowComment(models.Model):
+    """User comments attached to a workflow step."""
+    workflow_step = models.ForeignKey(
+        WorkflowStep,
+        on_delete=models.CASCADE,
+        related_name='comments'
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='workflow_comments'
+    )
+    content = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Comment by {self.user} on {self.workflow_step}"
+
+    class Meta:
+        verbose_name = "Workflow Comment"
+        verbose_name_plural = "Workflow Comments"
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['workflow_step', '-created_at']),
+        ]
+
+
+class WorkflowActionLog(models.Model):
+    """Audit log of notable user/system actions on a workflow step."""
+    ACTION_CHOICES = [
+        ('comment_added', 'Comment Added'),
+        ('description_updated', 'Description Updated'),
+        ('title_updated', 'Title Updated'),
+        ('readme_generated', 'README Generated'),
+        ('step_completed', 'Step Completed'),
+        ('code_change_requested', 'Code Change Requested'),
+        ('document_saved', 'Document Saved'),
+    ]
+
+    workflow_step = models.ForeignKey(
+        WorkflowStep,
+        on_delete=models.CASCADE,
+        related_name='action_logs'
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='workflow_action_logs'
+    )
+    action_type = models.CharField(max_length=50, choices=ACTION_CHOICES)
+    description = models.TextField(blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        user_display = self.user.username if self.user else 'System'
+        return f"{user_display} - {self.get_action_type_display()}"
+
+    class Meta:
+        verbose_name = "Workflow Action Log"
+        verbose_name_plural = "Workflow Action Logs"
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['workflow_step', '-created_at']),
+        ]
+
+
+class WorkflowDocument(models.Model):
+    """Stores generated documents (e.g., README revisions) for a workflow step."""
+    DOCUMENT_TYPE_CHOICES = [
+        ('readme', 'README'),
+        ('summary', 'Summary'),
+        ('spec', 'Specification'),
+        ('other', 'Other'),
+    ]
+
+    workflow_step = models.ForeignKey(
+        WorkflowStep,
+        on_delete=models.CASCADE,
+        related_name='documents'
+    )
+    title = models.CharField(max_length=255)
+    document_type = models.CharField(max_length=20, choices=DOCUMENT_TYPE_CHOICES, default='readme')
+    content = models.TextField()
+    source = models.CharField(max_length=50, default='ai')
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='workflow_documents'
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    def __str__(self):
+        return f"{self.get_document_type_display()} - {self.title}"
+
+    class Meta:
+        verbose_name = "Workflow Document"
+        verbose_name_plural = "Workflow Documents"
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['workflow_step', '-created_at']),
         ]
 
 

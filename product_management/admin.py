@@ -1,7 +1,8 @@
 from django.contrib import admin
 from .models import (
     Project, WorkflowStep, Vision, Initiative,
-    Portfolio, Product, Feature, ProductStep, FeatureStep, RecentItem
+    Portfolio, Product, Feature, ProductStep, FeatureStep, RecentItem,
+    WorkflowComment, WorkflowActionLog, WorkflowDocument,
 )
 
 
@@ -72,3 +73,27 @@ class RecentItemAdmin(admin.ModelAdmin):
     search_fields = ('item_title', 'user__username')
     readonly_fields = ('accessed_at',)
     ordering = ('-accessed_at',)
+
+
+@admin.register(WorkflowComment)
+class WorkflowCommentAdmin(admin.ModelAdmin):
+    list_display = ('workflow_step', 'user', 'created_at')
+    list_filter = ('created_at',)
+    search_fields = ('content', 'workflow_step__title', 'user__username')
+    readonly_fields = ('created_at', 'updated_at')
+
+
+@admin.register(WorkflowActionLog)
+class WorkflowActionLogAdmin(admin.ModelAdmin):
+    list_display = ('workflow_step', 'action_type', 'user', 'created_at')
+    list_filter = ('action_type', 'created_at')
+    search_fields = ('workflow_step__title', 'description', 'user__username')
+    readonly_fields = ('created_at',)
+
+
+@admin.register(WorkflowDocument)
+class WorkflowDocumentAdmin(admin.ModelAdmin):
+    list_display = ('workflow_step', 'document_type', 'title', 'created_by', 'created_at')
+    list_filter = ('document_type', 'created_at')
+    search_fields = ('title', 'workflow_step__title', 'created_by__username')
+    readonly_fields = ('created_at',)

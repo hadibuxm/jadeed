@@ -8,15 +8,67 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.db import models
 from django.db.models import Q
+from django.utils import timezone
 from github.models import GitHubConnection, GitHubRepository
 from .models import (
     Project, WorkflowStep, Vision, Initiative,
-    Portfolio, Product, Feature, ProductStep, FeatureStep, RecentItem
+    Portfolio, Product, Feature, ProductStep, FeatureStep, RecentItem,
+    WorkflowComment
 )
 from .ai_service import ProductDiscoveryAI
 import requests
 
 logger = logging.getLogger(__name__)
+
+
+def _serialize_workflow_comment(comment, current_user=None):
+    """Serialize a workflow comment for JSON responses."""
+    display_name = _format_user_display(comment.user)
+    created = timezone.localtime(comment.created_at)
+    return {
+        'id': comment.id,
+        'user': display_name,
+        'content': comment.content,
+        'created_at': created.strftime('%b %d, %Y %H:%M'),
+        'created_at_iso': created.isoformat(),
+        'is_owner': bool(current_user and comment.user_id == current_user.id),
+    }
+
+
+def _format_user_display(user):
+    if not user:
+        return 'System'
+    display_name = (user.get_full_name() or '').strip()
+    return display_name or user.username
+
+
+def _serialize_action_log(action):
+    created = timezone.localtime(action.created_at)
+    return {
+        'id': action.id,
+        'action_type': action.action_type,
+        'action_label': action.get_action_type_display(),
+        'user': _format_user_display(action.user),
+        'description': action.description,
+        'created_at': created.strftime('%b %d, %Y %H:%M'),
+        'created_at_iso': created.isoformat(),
+        'metadata': action.metadata or {},
+    }
+
+
+def _serialize_document(document):
+    created = timezone.localtime(document.created_at)
+    return {
+        'id': document.id,
+        'title': document.title,
+        'document_type': document.document_type,
+        'document_label': document.get_document_type_display(),
+        'user': _format_user_display(document.created_by),
+        'source': document.source,
+        'content': document.content,
+        'created_at': created.strftime('%b %d, %Y %H:%M'),
+        'created_at_iso': created.isoformat(),
+    }
 
 
 @login_required
@@ -447,12 +499,33 @@ def workflow_chat(request, step_id):
 
     # Serialize conversation history to JSON for JavaScript
     conversation_json = json.dumps(workflow_step.conversation_history or [])
+    recent_comments = list(
+        workflow_step.comments.select_related('user').order_by('-created_at')[:50]
+    )
+    serialized_comments = [
+        _serialize_workflow_comment(comment, request.user)
+        for comment in reversed(recent_comments)
+    ]
+    action_logs = workflow_step.action_logs.select_related('user').order_by('-created_at')[:50]
+    serialized_actions = [_serialize_action_log(action) for action in action_logs]
+    documents = list(
+        workflow_step.documents.select_related('created_by').order_by('-created_at')
+    )
+    serialized_documents = [
+        _serialize_document(doc)
+        for doc in documents
+    ]
 
     context = {
         'workflow_step': workflow_step,
         'project': workflow_step.project,
         'hierarchy': hierarchy,
         'conversation_json': conversation_json,
+        'comments_json': json.dumps(serialized_comments),
+        'comment_count': workflow_step.comments.count(),
+        'actions_json': json.dumps(serialized_actions),
+        'documents_json': json.dumps(serialized_documents),
+        'document_count': len(serialized_documents),
     }
     return render(request, 'product_management/workflow_chat.html', context)
 
@@ -519,6 +592,92 @@ def send_message(request, step_id):
 
 
 @login_required
+def workflow_comments(request, step_id):
+    """Handle listing and creating comments for a workflow step."""
+    workflow_step = get_object_or_404(WorkflowStep, id=step_id)
+
+    # Verify access
+    if workflow_step.project:
+        if workflow_step.project.user != request.user:
+            return JsonResponse({'success': False, 'error': 'Workflow step not found.'}, status=404)
+    elif workflow_step.user and workflow_step.user != request.user:
+        return JsonResponse({'success': False, 'error': 'Workflow step not found.'}, status=404)
+
+    if request.method == 'GET':
+        comments = workflow_step.comments.select_related('user').order_by('-created_at')[:50]
+        serialized = [
+            _serialize_workflow_comment(comment, request.user)
+            for comment in reversed(list(comments))
+        ]
+        return JsonResponse({
+            'success': True,
+            'comments': serialized,
+            'count': workflow_step.comments.count()
+        })
+
+    if request.method == 'POST':
+        try:
+            data = json.loads(request.body)
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid JSON.'}, status=400)
+
+        content = (data.get('content') or '').strip()
+        if not content:
+            return JsonResponse({'success': False, 'error': 'Comment cannot be empty.'}, status=400)
+
+        comment = WorkflowComment.objects.create(
+            workflow_step=workflow_step,
+            user=request.user,
+            content=content
+        )
+        workflow_step.log_action(
+            'comment_added',
+            request.user,
+            description=f'Comment added: {content[:100]}',
+            metadata={'comment_id': comment.id}
+        )
+        return JsonResponse({
+            'success': True,
+            'comment': _serialize_workflow_comment(comment, request.user),
+            'count': workflow_step.comments.count()
+        })
+
+    return JsonResponse({'success': False, 'error': 'Method not allowed.'}, status=405)
+
+
+@login_required
+def workflow_actions(request, step_id):
+    """Return recent action logs for a workflow step."""
+    workflow_step = get_object_or_404(WorkflowStep, id=step_id)
+
+    if workflow_step.project:
+        if workflow_step.project.user != request.user:
+            return JsonResponse({'success': False, 'error': 'Workflow step not found.'}, status=404)
+    elif workflow_step.user and workflow_step.user != request.user:
+        return JsonResponse({'success': False, 'error': 'Workflow step not found.'}, status=404)
+
+    actions = workflow_step.action_logs.select_related('user').order_by('-created_at')[:100]
+    serialized = [_serialize_action_log(action) for action in actions]
+    return JsonResponse({'success': True, 'actions': serialized})
+
+
+@login_required
+def workflow_documents(request, step_id):
+    """Return generated documents for a workflow step."""
+    workflow_step = get_object_or_404(WorkflowStep, id=step_id)
+
+    if workflow_step.project:
+        if workflow_step.project.user != request.user:
+            return JsonResponse({'success': False, 'error': 'Workflow step not found.'}, status=404)
+    elif workflow_step.user and workflow_step.user != request.user:
+        return JsonResponse({'success': False, 'error': 'Workflow step not found.'}, status=404)
+
+    documents = workflow_step.documents.select_related('created_by').order_by('-created_at')
+    serialized = [_serialize_document(doc) for doc in documents]
+    return JsonResponse({'success': True, 'documents': serialized})
+
+
+@login_required
 def get_conversation(request, step_id):
     """Get the conversation history for a workflow step."""
     workflow_step = get_object_or_404(WorkflowStep, id=step_id)
@@ -570,8 +729,26 @@ def generate_readme(request, step_id):
 
         ai_service = ProductDiscoveryAI(workflow_step)
         result = ai_service.generate_readme()
+        document_entry = None
 
         if result['success']:
+            readme_content = result.get('readme_content') or workflow_step.readme_content
+            if readme_content:
+                document_entry = workflow_step.save_document_version(
+                    title=f"README - {timezone.localtime(timezone.now()).strftime('%b %d, %Y %H:%M')}",
+                    content=readme_content,
+                    document_type='readme',
+                    user=request.user,
+                    source='ai'
+                )
+                workflow_step.log_action(
+                    'readme_generated',
+                    request.user,
+                    description=document_entry.title,
+                    metadata={'document_id': document_entry.id}
+                )
+                result['document'] = _serialize_document(document_entry)
+
             # If project has GitHub repo, optionally save it
             # Check both POST data and query parameters
             save_to_github = (
@@ -590,6 +767,15 @@ def generate_readme(request, step_id):
                         result['github_url'] = github_result['url']
                         result['github_file_path'] = github_result['file_path']
                         result['message'] = 'README generated and saved to GitHub!'
+                        workflow_step.log_action(
+                            'document_saved',
+                            request.user,
+                            description=f"README pushed to GitHub ({github_result['file_path']})",
+                            metadata={
+                                'document_id': document_entry.id if document_entry else None,
+                                'github_url': github_result['url']
+                            }
+                        )
                     else:
                         result['github_error'] = github_result.get('error', 'Unknown error')
                         result['message'] = 'README generated but failed to save to GitHub'
@@ -641,6 +827,7 @@ def ensure_readme_synced(request, step_id):
 
     try:
         ai_service = ProductDiscoveryAI(workflow_step)
+        document_entry = None
 
         # Determine if README needs regeneration
         needs_generation = (
@@ -665,6 +852,21 @@ def ensure_readme_synced(request, step_id):
                     'success': False,
                     'error': generate_result.get('error', 'Unable to generate README. Try adding more context first.')
                 }, status=400)
+            readme_content = generate_result.get('readme_content') or workflow_step.readme_content
+            if readme_content:
+                document_entry = workflow_step.save_document_version(
+                    title=f"README - {timezone.localtime(timezone.now()).strftime('%b %d, %Y %H:%M')}",
+                    content=readme_content,
+                    document_type='readme',
+                    user=request.user,
+                    source='ai'
+                )
+                workflow_step.log_action(
+                    'readme_generated',
+                    request.user,
+                    description=document_entry.title,
+                    metadata={'document_id': document_entry.id}
+                )
 
         if not workflow_step.readme_content:
             return JsonResponse({
@@ -691,13 +893,23 @@ def ensure_readme_synced(request, step_id):
                 'success': False,
                 'error': github_result.get('error', 'Failed to save README to GitHub.')
             }, status=400)
+        workflow_step.log_action(
+            'document_saved',
+            request.user,
+            description=f"README pushed to GitHub ({github_result.get('file_path')})",
+            metadata={
+                'document_id': document_entry.id if document_entry else None,
+                'github_url': github_result.get('url')
+            }
+        )
 
         return JsonResponse({
             'success': True,
             'readme_content': workflow_step.readme_content,
             'regenerated': needs_generation,
             'github_url': github_result.get('url'),
-            'github_file_path': github_result.get('file_path')
+            'github_file_path': github_result.get('file_path'),
+            'document': _serialize_document(document_entry) if document_entry else None
         })
 
     except Exception as e:
@@ -730,6 +942,11 @@ def complete_step(request, step_id):
     workflow_step.is_completed = True
     workflow_step.status = 'completed'  # Set status to completed
     workflow_step.save()
+    workflow_step.log_action(
+        'step_completed',
+        request.user,
+        description='Step marked as completed.'
+    )
 
     return JsonResponse({
         'success': True,
@@ -1177,6 +1394,10 @@ def update_workflow_step(request, step_id):
 
     try:
         updated_fields = []
+        original_title = workflow_step.title
+        original_description = workflow_step.description or ''
+        title_changed = False
+        description_changed = False
 
         if title is not None:
             cleaned_title = title.strip()
@@ -1187,12 +1408,28 @@ def update_workflow_step(request, step_id):
                 }, status=400)
             workflow_step.title = cleaned_title
             updated_fields.append('title')
+            title_changed = cleaned_title != original_title
 
         if description is not None:
-            workflow_step.description = description.strip()
+            cleaned_description = description.strip()
+            workflow_step.description = cleaned_description
             updated_fields.append('description')
+            description_changed = cleaned_description != original_description
 
         workflow_step.save()
+
+        if title_changed:
+            workflow_step.log_action(
+                'title_updated',
+                request.user,
+                description=f'Title updated to "{workflow_step.title}"'
+            )
+        if description_changed:
+            workflow_step.log_action(
+                'description_updated',
+                request.user,
+                description='Description updated.'
+            )
 
         return JsonResponse({
             'success': True,
