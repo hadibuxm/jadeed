@@ -157,14 +157,24 @@ def github_callback(request):
         
         logger.info(f'GitHub connection {"created" if created else "updated"} for user {request.user.username}')
         
-        # Automatically sync repositories
-        sync_repositories_internal(github_connection)
+        # Automatically sync repositories in background thread
+        import threading
+        def sync_in_background():
+            try:
+                sync_repositories_internal(github_connection)
+                logger.info(f'Background sync completed for user {request.user.username}')
+            except Exception as e:
+                logger.error(f'Background sync failed: {str(e)}')
+        
+        thread = threading.Thread(target=sync_in_background)
+        thread.daemon = True
+        thread.start()
         
         # Clean up session
         if 'github_oauth_state' in request.session:
             del request.session['github_oauth_state']
         
-        # Redirect to frontend with success
+        # Redirect to frontend with success immediately
         return HttpResponseRedirect(f'{settings.FRONTEND_URL}/github?connected=true')
         
     except requests.RequestException as e:
