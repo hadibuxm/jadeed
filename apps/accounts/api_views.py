@@ -1,5 +1,6 @@
 from django.contrib.auth import authenticate, login, logout
 
+import rest_framework.authentication
 from rest_framework import permissions, status
 from rest_framework.authtoken.models import Token
 from rest_framework.response import Response
@@ -92,11 +93,14 @@ class ApiLoginView(APIView):
         login(request, user)
         token, _ = Token.objects.get_or_create(user=user)
         member = get_user_organization_member(user)
-        message = (
-            f"Welcome back! You are signed in as {member.role.get_role_type_display()}."
-            if member
-            else "Welcome back! Please complete your organization setup."
-        )
+        
+        # Generate personalized welcome message
+        if member:
+            org_name = member.organization.name
+            role_display = member.role.get_role_type_display()
+            message = f"Welcome back to {org_name}! You're signed in as {role_display}."
+        else:
+            message = "Welcome back! Please complete your organization setup."
         return Response(
             {
                 "success": True,
@@ -110,10 +114,18 @@ class ApiLoginView(APIView):
 
 class ApiLogoutView(APIView):
     permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [
+        rest_framework.authentication.TokenAuthentication,
+        rest_framework.authentication.SessionAuthentication,
+    ]
 
     def post(self, request, *args, **kwargs):
+        # Delete the user's token
         Token.objects.filter(user=request.user).delete()
+        
+        # Logout from session
         logout(request)
+        
         return Response(
             {"success": True, "message": "Successfully logged out."},
             status=status.HTTP_200_OK,
@@ -131,16 +143,31 @@ class ApiSignupView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
-        user, organization, _ = create_user_with_organization(form)
+        user, organization, member = create_user_with_organization(form)
         login(request, user)
         token, _ = Token.objects.get_or_create(user=user)
 
         return Response(
             {
                 "success": True,
-                "message": f'Account created and logged in for "{organization.name}".',
+                "message": f'Welcome to Jadeed! Your organization "{organization.name}" has been created successfully.',
                 "token": token.key,
                 "data": _serialize_user(user),
             },
             status=status.HTTP_201_CREATED,
+        )
+
+
+class ApiCsrfView(APIView):
+    """
+    Get CSRF token for the frontend
+    """
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, *args, **kwargs):
+        from django.middleware.csrf import get_token
+        csrf_token = get_token(request)
+        return Response(
+            {"success": True, "csrf_token": csrf_token},
+            status=status.HTTP_200_OK,
         )
