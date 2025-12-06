@@ -1,9 +1,19 @@
 from django.urls import path
-from . import views
+from . import views, api_views
 
 app_name = 'github'
 
-urlpatterns = [
+# API endpoints for Next.js frontend
+api_urlpatterns = [
+    path('api/', api_views.github_status, name='api_status'),
+    path('api/connect/', api_views.github_connect, name='api_connect'),
+    path('api/callback/', api_views.github_callback, name='api_callback'),
+    path('api/sync/', api_views.github_sync, name='api_sync'),
+    path('api/disconnect/', api_views.github_disconnect, name='api_disconnect'),
+]
+
+# Legacy template-based views (keep for backward compatibility)
+template_urlpatterns = [
     path('', views.index, name='index'),
     path('connect/', views.connect, name='connect'),
     path('callback/', views.callback, name='callback'),
@@ -12,3 +22,5 @@ urlpatterns = [
     path('request-code-change/', views.request_code_change, name='request_code_change'),
     path('code-change-status/<int:request_id>/', views.get_code_change_status, name='get_code_change_status'),
 ]
+
+urlpatterns = api_urlpatterns + template_urlpatterns

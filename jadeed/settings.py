@@ -199,5 +199,8 @@ ATLASSIAN_SCOPES = os.environ.get(
 # GitHub OAuth config
 GITHUB_CLIENT_ID = os.environ.get("GITHUB_CLIENT_ID", "Ov23li06CzpdvO5lQbpi")
 GITHUB_CLIENT_SECRET = os.environ.get("GITHUB_CLIENT_SECRET", "30dcb44c28860ed52ece20f6846f66a1db2f3952")
-GITHUB_REDIRECT_URI = os.environ.get("GITHUB_REDIRECT_URI", "https://geniepm.pythonanywhere.com/github/callback/")
+GITHUB_REDIRECT_URI = os.environ.get("GITHUB_REDIRECT_URI", "http://localhost:8000/github/api/callback/")
 GITHUB_SCOPES = os.environ.get("GITHUB_SCOPES", "repo user")
+
+# Frontend URL for redirects
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:3000")
