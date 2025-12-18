@@ -695,6 +695,39 @@
                         <small class="text-muted">Features must be associated with a product</small>
                     </div>
 
+                    <div class="mb-4" id="featureRepoGroup" style="display: none;">
+                        {% if has_github %}
+                        <label class="form-label fw-bold">Repository *</label>
+                        <select class="form-select" id="workflowFeatureRepoSelect" disabled>
+                            <option value="">-- Select Repository --</option>
+                        </select>
+                        <small class="text-muted" id="featureRepoHelp">Select a product to load its repositories.</small>
+                        {% else %}
+                        <div class="alert alert-info mb-0">
+                            <small>
+                                <i class="fas fa-info-circle me-1"></i>
+                                <a href="{% url 'github:connect' %}">Connect GitHub</a> to assign repositories to new features.
+                            </small>
+                        </div>
+                        {% endif %}
+                    </div>
+
+                    <div class="mb-4" id="productRepoGroup" style="display: none;">
+                        {% if has_github %}
+                        <label class="form-label fw-bold">GitHub Repositories *</label>
+                        <select class="form-select" id="workflowRepoSelect" multiple size="6">
+                        </select>
+                        <small class="text-muted">Select one or more repositories to link with this product</small>
+                        {% else %}
+                        <div class="alert alert-info mb-0">
+                            <small>
+                                <i class="fas fa-info-circle me-1"></i>
+                                <a href="{% url 'github:connect' %}">Connect GitHub</a> to link repositories to new products.
+                            </small>
+                        </div>
+                        {% endif %}
+                    </div>
+
                     <div class="mb-4">
                         <label class="form-label fw-bold">Roadmap (Optional)</label>
                         <select class="form-select" id="workflowProjectSelect">
@@ -780,6 +813,16 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const hasGithub = {{ has_github|yesno:"true,false" }};
+    const productRepoMap = {{ product_repo_map_json|default:'{}'|safe }};
+    const productSelectGroup = document.getElementById('productSelectGroup');
+    const statusSelectGroup = document.getElementById('workflowStatusSelectGroup');
+    const productRepoGroup = document.getElementById('productRepoGroup');
+    const featureRepoGroup = document.getElementById('featureRepoGroup');
+    const workflowRepoSelect = document.getElementById('workflowRepoSelect');
+    const workflowProductSelect = document.getElementById('workflowProductSelect');
+    const workflowFeatureRepoSelect = document.getElementById('workflowFeatureRepoSelect');
+    const featureRepoHelp = document.getElementById('featureRepoHelp');
+    let repositoriesCache = [];
     let draggedCard = null;
 
     // Navigation dropdowns - Go to Product
@@ -916,6 +959,44 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    function updateFeatureRepoOptions(productStepId) {
+        if (!workflowFeatureRepoSelect) {
+            return;
+        }
+        workflowFeatureRepoSelect.innerHTML = '<option value="">-- Select Repository --</option>';
+        workflowFeatureRepoSelect.disabled = true;
+
+        if (!productStepId) {
+            if (featureRepoHelp) {
+                featureRepoHelp.textContent = 'Select a product to load its repositories.';
+            }
+            return;
+        }
+
+        const repos = productRepoMap[String(productStepId)] || [];
+        if (!repos.length) {
+            if (featureRepoHelp) {
+                featureRepoHelp.textContent = 'This product has no linked repositories yet.';
+            }
+            return;
+        }
+
+        repos.forEach(repo => {
+            const option = document.createElement('option');
+            option.value = repo.id;
+            option.textContent = repo.full_name;
+            workflowFeatureRepoSelect.appendChild(option);
+        });
+
+        workflowFeatureRepoSelect.disabled = false;
+        if (featureRepoHelp) {
+            featureRepoHelp.textContent = 'Select one repository for this feature.';
+        }
+        if (repos.length === 1) {
+            workflowFeatureRepoSelect.value = repos[0].id;
+        }
+    }
+
     // Handle workflow step type selection
     document.querySelectorAll('[data-step-type]').forEach(function(item) {
         item.addEventListener('click', function(e) {
@@ -924,35 +1005,90 @@ document.addEventListener('DOMContentLoaded', function() {
             document.getElementById('workflowStepType').value = stepType;
             document.getElementById('workflowStepTypeLabel').textContent = stepType.charAt(0).toUpperCase() + stepType.slice(1);
 
-            // Show product selector and status selector for features
-            const productSelectGroup = document.getElementById('productSelectGroup');
-            const statusSelectGroup = document.getElementById('workflowStatusSelectGroup');
-            if (stepType === 'feature') {
-                productSelectGroup.style.display = '';
-                statusSelectGroup.style.display = '';
-            } else {
-                productSelectGroup.style.display = 'none';
-                statusSelectGroup.style.display = 'none';
+            if (productSelectGroup) {
+                productSelectGroup.style.display = stepType === 'feature' ? '' : 'none';
+            }
+            if (statusSelectGroup) {
+                statusSelectGroup.style.display = stepType === 'feature' ? '' : 'none';
+            }
+            if (productRepoGroup) {
+                if (stepType === 'product') {
+                    productRepoGroup.style.display = '';
+                    if (hasGithub && (!repositoriesCache || repositoriesCache.length === 0)) {
+                        loadRepositories();
+                    }
+                } else {
+                    productRepoGroup.style.display = 'none';
+                    if (workflowRepoSelect) {
+                        Array.from(workflowRepoSelect.options).forEach(option => option.selected = false);
+                    }
+                }
+            }
+            if (featureRepoGroup) {
+                if (stepType === 'feature' && hasGithub) {
+                    featureRepoGroup.style.display = '';
+                    updateFeatureRepoOptions(workflowProductSelect?.value || null);
+                } else {
+                    featureRepoGroup.style.display = 'none';
+                    if (workflowFeatureRepoSelect) {
+                        workflowFeatureRepoSelect.innerHTML = '<option value="">' +
+                            '-- Select Repository --' +
+                            '</option>';
+                        workflowFeatureRepoSelect.disabled = true;
+                    }
+                    if (featureRepoHelp) {
+                        featureRepoHelp.textContent = 'Select a product to load its repositories.';
+                    }
+                }
             }
         });
     });
 
+    workflowProductSelect?.addEventListener('change', function() {
+        const currentStepType = document.getElementById('workflowStepType').value;
+        if (currentStepType === 'feature' && hasGithub) {
+            updateFeatureRepoOptions(this.value || null);
+        }
+    });
+
     // Create workflow step
     document.getElementById('createWorkflowBtn').addEventListener('click', function() {
+        const button = this;
         const projectId = document.getElementById('workflowProjectSelect').value || null;
         const stepType = document.getElementById('workflowStepType').value;
         const title = document.getElementById('workflowTitle').value.trim();
         const description = document.getElementById('workflowDescription').value.trim();
-        const productStepId = document.getElementById('workflowProductSelect').value || null;
+        const parentStepId = stepType === 'feature'
+            ? (workflowProductSelect?.value || null)
+            : null;
+        const featureRepoId = stepType === 'feature'
+            ? (workflowFeatureRepoSelect?.value || null)
+            : null;
         let status = 'backlog'; // Default status
+
+        let repositoryIds = [];
+        if (workflowRepoSelect) {
+            repositoryIds = Array.from(workflowRepoSelect.selectedOptions || [])
+                .map(option => option.value)
+                .filter(Boolean);
+        }
 
         // Validate feature requires product and get status
         if (stepType === 'feature') {
-            if (!productStepId) {
+            if (!parentStepId) {
                 alert('Please select a product for this feature');
                 return;
             }
+            if (!featureRepoId) {
+                alert('Please select a repository for this feature');
+                return;
+            }
             status = document.getElementById('workflowStatusSelect').value;
+        } else if (stepType === 'product') {
+            if (!repositoryIds.length) {
+                alert('Please select at least one repository for this product');
+                return;
+            }
         }
 
         if (!title) {
@@ -960,8 +1096,8 @@ document.addEventListener('DOMContentLoaded', function() {
             return;
         }
 
-        this.disabled = true;
-        this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating...';
+        button.disabled = true;
+        button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Creating...';
 
         // Use appropriate endpoint based on whether project is selected
         const createUrl = projectId
@@ -978,9 +1114,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 step_type: stepType,
                 title: title,
                 description: description,
-                parent_step_id: productStepId,
+                parent_step_id: parentStepId,
                 project_id: projectId,
-                status: status
+                status: status,
+                repository_ids: repositoryIds,
+                feature_repository_id: featureRepoId
             })
         })
         .then(response => response.json())
@@ -989,23 +1127,32 @@ document.addEventListener('DOMContentLoaded', function() {
                 window.location.href = `/product-management/workflow/${data.step_id}/`;
             } else {
                 alert('Error: ' + data.error);
-                this.disabled = false;
-                this.innerHTML = '<i class="fas fa-plus me-1"></i>Create';
+                button.disabled = false;
+                button.innerHTML = '<i class="fas fa-plus me-1"></i>Create';
             }
         })
         .catch(error => {
             alert('Error creating workflow step: ' + error);
-            this.disabled = false;
-            this.innerHTML = '<i class="fas fa-plus me-1"></i>Create';
+            button.disabled = false;
+            button.innerHTML = '<i class="fas fa-plus me-1"></i>Create';
         });
     });
 
     // Load repositories when modal opens
     if (hasGithub) {
         const createProjectModal = document.getElementById('createProjectModal');
-        createProjectModal.addEventListener('show.bs.modal', function() {
-            loadRepositories();
-        });
+        if (createProjectModal) {
+            createProjectModal.addEventListener('show.bs.modal', function() {
+                loadRepositories();
+            });
+        }
+
+        const createWorkflowModal = document.getElementById('createWorkflowModal');
+        if (createWorkflowModal) {
+            createWorkflowModal.addEventListener('show.bs.modal', function() {
+                loadRepositories();
+            });
+        }
     }
 
     // Create project
@@ -1100,25 +1247,60 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     function loadRepositories() {
-        fetch('{% url "product_management:get_repositories" %}')
+        return fetch('{% url "product_management:get_repositories" %}')
         .then(response => response.json())
         .then(data => {
-            const select = document.getElementById('projectRepo');
-            if (data.success && data.repositories && data.repositories.length > 0) {
-                select.innerHTML = '<option value="">-- No Repository --</option>';
-                data.repositories.forEach(repo => {
-                    const option = document.createElement('option');
-                    option.value = repo.id;
-                    option.textContent = repo.full_name;
-                    select.appendChild(option);
-                });
-            } else {
-                select.innerHTML = '<option value="">-- No Repository Found --</option>';
-            }
+            repositoriesCache = (data.success && Array.isArray(data.repositories)) ? data.repositories : [];
+            populateRepositorySelects(repositoriesCache);
         })
         .catch(error => {
             console.error('Error loading repositories:', error);
+            repositoriesCache = [];
+            populateRepositorySelects(repositoriesCache);
         });
+    }
+
+    function populateRepositorySelects(repositories) {
+        const projectRepoSelect = document.getElementById('projectRepo');
+        if (projectRepoSelect) {
+            projectRepoSelect.innerHTML = '';
+            if (repositories.length) {
+                const noRepoOption = document.createElement('option');
+                noRepoOption.value = '';
+                noRepoOption.textContent = '-- No Repository --';
+                projectRepoSelect.appendChild(noRepoOption);
+
+                repositories.forEach(repo => {
+                    const option = document.createElement('option');
+                    option.value = repo.id;
+                    option.textContent = repo.full_name;
+                    projectRepoSelect.appendChild(option);
+                });
+            } else {
+                const emptyOption = document.createElement('option');
+                emptyOption.value = '';
+                emptyOption.textContent = '-- No Repository Found --';
+                projectRepoSelect.appendChild(emptyOption);
+            }
+        }
+
+        if (workflowRepoSelect) {
+            workflowRepoSelect.innerHTML = '';
+            if (repositories.length) {
+                repositories.forEach(repo => {
+                    const option = document.createElement('option');
+                    option.value = repo.id;
+                    option.textContent = repo.full_name;
+                    workflowRepoSelect.appendChild(option);
+                });
+            } else {
+                const emptyOption = document.createElement('option');
+                emptyOption.value = '';
+                emptyOption.disabled = true;
+                emptyOption.textContent = 'No repositories found';
+                workflowRepoSelect.appendChild(emptyOption);
+            }
+        }
     }
 
     function getCookie(name) {

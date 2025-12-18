@@ -81,12 +81,20 @@ def index(request):
     # Get all products - both project-associated and standalone (owned by user)
     products_query = Product.objects.filter(
         Q(workflow_step__project__user=request.user) | Q(workflow_step__user=request.user)
-    ).select_related('workflow_step', 'workflow_step__project').distinct()
+    ).select_related(
+        'workflow_step',
+        'workflow_step__project'
+    ).prefetch_related('repositories').distinct()
 
     # Get all features - both project-associated and standalone (owned by user)
     features_query = Feature.objects.filter(
         Q(workflow_step__project__user=request.user) | Q(workflow_step__user=request.user)
-    ).select_related('workflow_step', 'workflow_step__project', 'workflow_step__parent_step').distinct()
+    ).select_related(
+        'workflow_step',
+        'workflow_step__project',
+        'workflow_step__parent_step',
+        'repository'
+    ).distinct()
 
     # Group products and features by status
     items_by_status = {
@@ -96,9 +104,18 @@ def index(request):
         'completed': {'products': [], 'features': []},
     }
 
+    product_repo_map = {}
     for product in products_query:
         status = product.workflow_step.status
         items_by_status[status]['products'].append(product)
+        repo_payload = [{
+            'id': repo.id,
+            'name': repo.name,
+            'full_name': repo.full_name,
+            'description': repo.description or '',
+            'html_url': repo.html_url,
+        } for repo in product.repositories.all()]
+        product_repo_map[str(product.workflow_step.id)] = repo_payload
 
     for feature in features_query:
         status = feature.workflow_step.status
@@ -120,6 +137,7 @@ def index(request):
         'items_by_status': items_by_status,
         'recent_items': recent_items,
         'has_github': has_github,
+        'product_repo_map_json': json.dumps(product_repo_map),
     }
     return render(request, 'product_management/index.html', context)
 
@@ -355,6 +373,27 @@ def create_workflow_step(request, project_id=None):
         parent_step_id = data.get('parent_step_id')
         provided_project_id = data.get('project_id')
         status = data.get('status', 'backlog')  # Get status from request, default to backlog
+        repository_ids_raw = data.get('repository_ids')
+        feature_repository_id = data.get('feature_repository_id')
+
+        repository_ids = []
+        if repository_ids_raw is not None:
+            if not isinstance(repository_ids_raw, list):
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Invalid repository selection.'
+                }, status=400)
+            try:
+                repository_ids = [
+                    int(repo_id)
+                    for repo_id in repository_ids_raw
+                    if str(repo_id).strip()
+                ]
+            except (TypeError, ValueError):
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Invalid repository selection.'
+                }, status=400)
 
         # Use provided project_id if no URL project_id
         if not project and provided_project_id:
@@ -408,6 +447,8 @@ def create_workflow_step(request, project_id=None):
         }
 
         # Features MUST have a Product as parent
+        product_details = None
+        selected_feature_repository = None
         if step_type == 'feature':
             if not parent_step:
                 return JsonResponse({
@@ -418,6 +459,13 @@ def create_workflow_step(request, project_id=None):
                 return JsonResponse({
                     'success': False,
                     'error': 'Features can only be created under a Product.'
+                }, status=400)
+            try:
+                product_details = parent_step.product_details
+            except Product.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Parent product details not found.'
                 }, status=400)
 
         # Validate parent-child hierarchy order
@@ -434,6 +482,39 @@ def create_workflow_step(request, project_id=None):
                     'success': False,
                     'error': f'Invalid hierarchy: {step_type.capitalize()} cannot be a child of {parent_step.step_type.capitalize()}. '
                             f'Valid hierarchy: Vision → Initiative → Portfolio → Product → Feature'
+                }, status=400)
+
+        # Prepare repository selections (only for products)
+        selected_repositories = []
+        if step_type == 'product':
+            if not repository_ids:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Select at least one repository for a product.'
+                }, status=400)
+            try:
+                github_connection = request.user.github_connection
+            except GitHubConnection.DoesNotExist:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Connect your GitHub account before linking repositories.'
+                }, status=400)
+
+            unique_repo_ids = []
+            seen_repo_ids = set()
+            for repo_id in repository_ids:
+                if repo_id not in seen_repo_ids:
+                    unique_repo_ids.append(repo_id)
+                    seen_repo_ids.add(repo_id)
+
+            selected_repositories = list(GitHubRepository.objects.filter(
+                id__in=unique_repo_ids,
+                connection=github_connection
+            ))
+            if len(selected_repositories) != len(unique_repo_ids):
+                return JsonResponse({
+                    'success': False,
+                    'error': 'One or more repositories could not be found.'
                 }, status=400)
 
         # Create workflow step
@@ -455,9 +536,37 @@ def create_workflow_step(request, project_id=None):
         elif step_type == 'portfolio':
             Portfolio.objects.create(workflow_step=workflow_step)
         elif step_type == 'product':
-            Product.objects.create(workflow_step=workflow_step)
+            product = Product.objects.create(workflow_step=workflow_step)
+            if selected_repositories:
+                product.repositories.set(selected_repositories)
         elif step_type == 'feature':
-            Feature.objects.create(workflow_step=workflow_step)
+            if not feature_repository_id:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Select a repository to use for this feature.'
+                }, status=400)
+            try:
+                feature_repository_id = int(feature_repository_id)
+            except (TypeError, ValueError):
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Invalid repository selection.'
+                }, status=400)
+            if not product_details:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Unable to determine product repositories.'
+                }, status=400)
+            selected_feature_repository = product_details.repositories.filter(id=feature_repository_id).first()
+            if not selected_feature_repository:
+                return JsonResponse({
+                    'success': False,
+                    'error': 'Selected repository is not linked to the parent product.'
+                }, status=400)
+            Feature.objects.create(
+                workflow_step=workflow_step,
+                repository=selected_feature_repository
+            )
 
         return JsonResponse({
             'success': True,
@@ -518,6 +627,30 @@ def workflow_chat(request, step_id):
         for doc in documents
     ]
 
+    product_details = None
+    product_repositories = []
+    if workflow_step.step_type == 'product':
+        try:
+            product_details = workflow_step.product_details
+            product_repositories = list(product_details.repositories.all())
+        except Product.DoesNotExist:
+            product_details = None
+
+    feature_details = None
+    feature_repository = None
+    if workflow_step.step_type == 'feature':
+        try:
+            feature_details = workflow_step.feature_details
+            feature_repository = feature_details.repository
+        except Feature.DoesNotExist:
+            feature_details = None
+
+    repository_for_actions = None
+    if workflow_step.step_type == 'feature':
+        repository_for_actions = feature_repository
+    elif workflow_step.project:
+        repository_for_actions = workflow_step.project.github_repository
+
     context = {
         'workflow_step': workflow_step,
         'project': workflow_step.project,
@@ -528,6 +661,11 @@ def workflow_chat(request, step_id):
         'actions_json': json.dumps(serialized_actions),
         'documents_json': json.dumps(serialized_documents),
         'document_count': len(serialized_documents),
+        'product_details': product_details,
+        'product_repositories': product_repositories,
+        'feature_details': feature_details,
+        'feature_repository': feature_repository,
+        'repository_for_actions': repository_for_actions,
     }
     return render(request, 'product_management/workflow_chat.html', context)
 
@@ -805,12 +943,21 @@ def generate_readme(request, step_id):
                 request.GET.get('save_to_github', 'false') == 'true'
             )
 
-            if save_to_github and workflow_step.project.github_repository:
+            target_repository = None
+            if workflow_step.step_type == 'feature':
+                try:
+                    target_repository = workflow_step.feature_details.repository
+                except Feature.DoesNotExist:
+                    target_repository = None
+            elif workflow_step.project:
+                target_repository = workflow_step.project.github_repository
+
+            if save_to_github and target_repository:
                 try:
                     github_connection = request.user.github_connection
                     github_result = ai_service.save_readme_to_github(
                         github_connection,
-                        workflow_step.project.github_repository
+                        target_repository
                     )
                     if github_result['success']:
                         result['github_url'] = github_result['url']
@@ -868,10 +1015,19 @@ def ensure_readme_synced(request, step_id):
             'error': 'Automatic README sync is only available for features.'
         }, status=400)
 
-    if not workflow_step.project or not workflow_step.project.github_repository:
+    try:
+        feature_details = workflow_step.feature_details
+    except Feature.DoesNotExist:
         return JsonResponse({
             'success': False,
-            'error': 'Connect this feature to a roadmap with a GitHub repository before requesting code changes.'
+            'error': 'Feature details not found.'
+        }, status=400)
+
+    feature_repository = feature_details.repository
+    if not feature_repository:
+        return JsonResponse({
+            'success': False,
+            'error': 'Link this feature to one of its product repositories before requesting code changes.'
         }, status=400)
 
     try:
@@ -934,7 +1090,7 @@ def ensure_readme_synced(request, step_id):
 
         github_result = ai_service.save_readme_to_github(
             github_connection,
-            workflow_step.project.github_repository
+            feature_repository
         )
 
         if not github_result.get('success'):
@@ -1072,6 +1228,8 @@ def product_steps(request, step_id):
         'release': product_steps.filter(layer='release'),
     }
 
+    product_repositories = list(product.repositories.all())
+
     context = {
         'workflow_step': workflow_step,
         'product': product,
@@ -1079,6 +1237,7 @@ def product_steps(request, step_id):
         'hierarchy': hierarchy,
         'product_steps': product_steps,
         'steps_by_layer': steps_by_layer,
+        'product_repositories': product_repositories,
     }
     return render(request, 'product_management/product_steps.html', context)
 
@@ -1213,6 +1372,7 @@ def feature_steps(request, step_id):
         'planning_count': planning_count,
         'development_count': development_count,
         'delivery_count': delivery_count,
+        'feature_repository': feature.repository,
     }
     return render(request, 'product_management/feature_steps.html', context)
 
@@ -1859,6 +2019,7 @@ def feature_step_chat(request, feature_step_id):
         'project': workflow_step.project,
         'hierarchy': hierarchy,
         'conversation_json': conversation_json,
+        'feature_repository': feature_step.feature.repository,
     }
     return render(request, 'product_management/feature_step_chat.html', context)
 
@@ -1977,25 +2138,29 @@ def generate_feature_step_document(request, feature_step_id):
                 request.GET.get('save_to_github', 'false') == 'true'
             )
 
-            project = workflow_step.project
-            if save_to_github and project and project.github_repository:
-                try:
-                    github_connection = request.user.github_connection
-                    github_result = ai_service.save_readme_to_github(
-                        github_connection,
-                        project.github_repository
-                    )
-                    if github_result['success']:
-                        result['github_url'] = github_result['url']
-                        result['github_file_path'] = github_result['file_path']
-                        result['message'] = 'Document generated and saved to GitHub!'
-                    else:
-                        result['github_error'] = github_result.get('error', 'Unknown error')
+            target_repository = feature_step.feature.repository
+            if save_to_github:
+                if not target_repository:
+                    result['github_error'] = 'Link this feature to a repository before saving to GitHub.'
+                    result['message'] = 'Document generated but no repository configured.'
+                else:
+                    try:
+                        github_connection = request.user.github_connection
+                        github_result = ai_service.save_readme_to_github(
+                            github_connection,
+                            target_repository
+                        )
+                        if github_result['success']:
+                            result['github_url'] = github_result['url']
+                            result['github_file_path'] = github_result['file_path']
+                            result['message'] = 'Document generated and saved to GitHub!'
+                        else:
+                            result['github_error'] = github_result.get('error', 'Unknown error')
+                            result['message'] = 'Document generated but failed to save to GitHub'
+                    except Exception as e:
+                        logger.error(f"Error saving feature document to GitHub: {str(e)}")
+                        result['github_error'] = str(e)
                         result['message'] = 'Document generated but failed to save to GitHub'
-                except Exception as e:
-                    logger.error(f"Error saving feature document to GitHub: {str(e)}")
-                    result['github_error'] = str(e)
-                    result['message'] = 'Document generated but failed to save to GitHub'
 
         return JsonResponse(result)
 

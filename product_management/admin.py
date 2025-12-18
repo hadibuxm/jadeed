@@ -44,8 +44,8 @@ class ProductAdmin(admin.ModelAdmin):
 
 @admin.register(Feature)
 class FeatureAdmin(admin.ModelAdmin):
-    list_display = ('workflow_step', 'priority')
-    list_filter = ('priority',)
+    list_display = ('workflow_step', 'priority', 'repository')
+    list_filter = ('priority', 'repository')
 
 
 @admin.register(ProductStep)

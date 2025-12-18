@@ -433,6 +433,12 @@ class Product(models.Model):
     value_proposition = models.TextField(blank=True)
     user_personas = models.TextField(blank=True)
     market_analysis = models.TextField(blank=True)
+    repositories = models.ManyToManyField(
+        GitHubRepository,
+        blank=True,
+        related_name='products',
+        help_text='GitHub repositories connected to this product'
+    )
 
     def __str__(self):
         return f"Product: {self.workflow_step.title}"
@@ -448,6 +454,14 @@ class Feature(models.Model):
         WorkflowStep,
         on_delete=models.CASCADE,
         related_name='feature_details'
+    )
+    repository = models.ForeignKey(
+        GitHubRepository,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='features',
+        help_text='GitHub repository used for AI delivery of this feature'
     )
     user_story = models.TextField(blank=True)
     acceptance_criteria = models.TextField(blank=True)

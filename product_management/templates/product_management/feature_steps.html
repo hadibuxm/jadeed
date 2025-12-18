@@ -45,6 +45,21 @@
                             {{ feature.workflow_step.title }}
                         </h1>
                         <p class="mb-0 opacity-75">Feature Delivery Lifecycle: Planning → Development → Delivery</p>
+                        {% if feature_repository %}
+                        <div class="mt-3">
+                            <h6 class="text-uppercase text-muted small mb-2">Linked Repository</h6>
+                            <a href="{{ feature_repository.html_url }}" target="_blank" class="btn btn-sm btn-outline-dark">
+                                <i class="fab fa-github me-1"></i>{{ feature_repository.full_name }}
+                            </a>
+                        </div>
+                        {% else %}
+                        <div class="alert alert-warning mt-3 mb-0">
+                            <small>
+                                <i class="fas fa-info-circle me-1"></i>
+                                Link this feature to one of its product repositories to unlock AI code generation.
+                            </small>
+                        </div>
+                        {% endif %}
                     </div>
                     <div>
                         <button class="btn btn-danger btn-sm delete-feature-btn"

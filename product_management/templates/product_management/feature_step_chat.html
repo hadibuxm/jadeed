@@ -109,6 +109,15 @@
                         {{ feature_step.updated_at|date:"M d, Y H:i" }}
                     </div>
                 </div>
+                {% if feature_repository %}
+                <hr>
+                <div class="small text-muted text-uppercase fw-semibold mb-2">
+                    Linked Repository
+                </div>
+                <a href="{{ feature_repository.html_url }}" target="_blank" class="btn btn-sm btn-outline-dark w-100 text-start">
+                    <i class="fab fa-github me-1"></i>{{ feature_repository.full_name }}
+                </a>
+                {% endif %}
             </div>
         </div>
 
@@ -118,7 +127,7 @@
             </div>
             <div class="card-body">
                 <div id="documentPreview" class="small" style="max-height: 300px; overflow-y: auto;"></div>
-                {% if project and project.github_repository %}
+                {% if feature_repository %}
                 <button class="btn btn-sm btn-creative-outline w-100 mt-3" id="saveToGithubBtn">
                     <i class="fab fa-github me-1"></i>Save to GitHub
                 </button>
@@ -337,7 +346,7 @@ document.getElementById('completeStepBtn').addEventListener('click', function() 
 });
 {% endif %}
 
-{% if project and project.github_repository %}
+{% if feature_repository %}
 document.getElementById('saveToGithubBtn')?.addEventListener('click', function() {
     this.disabled = true;
     this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';

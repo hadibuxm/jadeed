@@ -173,6 +173,39 @@
                         {{ workflow_step.updated_at|date:"M d, Y H:i" }}
                     </div>
                 </div>
+                {% if workflow_step.step_type == 'product' and product_repositories %}
+                <hr>
+                <div>
+                    <div class="small text-muted text-uppercase fw-semibold mb-2">
+                        Linked Repositories
+                    </div>
+                    <div class="d-flex flex-column gap-2">
+                        {% for repo in product_repositories %}
+                        <a href="{{ repo.html_url }}" target="_blank" class="btn btn-sm btn-outline-dark text-start">
+                            <i class="fab fa-github me-1"></i>{{ repo.full_name }}
+                        </a>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                {% if workflow_step.step_type == 'feature' %}
+                    <hr>
+                    {% if feature_repository %}
+                    <div class="small text-muted text-uppercase fw-semibold mb-2">
+                        Linked Repository
+                    </div>
+                    <a href="{{ feature_repository.html_url }}" target="_blank" class="btn btn-sm btn-outline-dark w-100 text-start">
+                        <i class="fab fa-github me-1"></i>{{ feature_repository.full_name }}
+                    </a>
+                    {% else %}
+                    <div class="alert alert-warning mb-0">
+                        <small>
+                            <i class="fas fa-info-circle me-1"></i>
+                            Link this feature to one of its product repositories to enable GitHub actions.
+                        </small>
+                    </div>
+                    {% endif %}
+                {% endif %}
             </div>
         </div>
 
@@ -190,7 +223,7 @@
                     </small>
                 </div>
                 {% endif %}
-                {% if project.github_repository %}
+                {% if repository_for_actions %}
                 <button class="btn btn-sm btn-creative-outline w-100 mt-3" id="saveToGithubBtn">
                     <i class="fab fa-github me-1"></i>Save to GitHub
                 </button>
@@ -306,7 +339,7 @@
                     <i class="fas fa-file-alt me-1"></i>Generate README
                 </button>
 
-                {% if workflow_step.step_type == 'feature' and project.github_repository %}
+                {% if workflow_step.step_type == 'feature' and feature_repository %}
                 <div class="mb-3">
                     <div class="alert alert-light border mb-2">
                         <small class="text-muted">
@@ -340,7 +373,7 @@
                 <div class="alert alert-warning mb-2">
                     <small>
                         <i class="fas fa-info-circle me-1"></i>
-                        Connect a GitHub repository to enable AI code generation
+                        Link this feature to one of its product repositories to enable AI code generation
                     </small>
                 </div>
                 {% endif %}
@@ -418,6 +451,7 @@ const commentSubmitBtn = document.getElementById('commentSubmitBtn');
 const initialComments = {{ comments_json|default:'[]'|safe }};
 const actionHistoryList = document.getElementById('actionHistoryList');
 const actionHistoryEmpty = document.getElementById('actionHistoryEmpty');
+const featureRepositoryId = {% if feature_repository %}{{ feature_repository.id }}{% else %}null{% endif %};
 const refreshActionsBtn = document.getElementById('refreshActionsBtn');
 const documentList = document.getElementById('documentList');
 const documentEmptyState = document.getElementById('documentEmptyState');
@@ -676,7 +710,7 @@ document.getElementById('completeStepBtn').addEventListener('click', function() 
 {% endif %}
 
 // Request Code Change (Feature Implementation)
-{% if workflow_step.step_type == 'feature' and project.github_repository %}
+{% if workflow_step.step_type == 'feature' and feature_repository %}
 const workflowData = {
     title: '{{ workflow_step.title|escapejs }}',
     description: '{{ workflow_step.description|escapejs }}',
@@ -765,6 +799,9 @@ function buildCodeChangeRequest(readmeContent) {
 }
 
 function submitCodeChangeRequest(changeRequest) {
+    if (!featureRepositoryId) {
+        throw new Error('Link this feature to a repository before requesting code changes.');
+    }
     return fetch('/github/request-code-change/', {
         method: 'POST',
         headers: {
@@ -772,7 +809,7 @@ function submitCodeChangeRequest(changeRequest) {
             'X-CSRFToken': getCookie('csrftoken')
         },
         body: JSON.stringify({
-            repo_id: {{ project.github_repository.id }},
+            repo_id: featureRepositoryId,
             change_request: changeRequest
         })
     })
@@ -880,7 +917,7 @@ function pollCodeChangeStatus(requestId) {
 {% endif %}
 
 // Save to GitHub
-{% if project.github_repository %}
+{% if repository_for_actions %}
 document.getElementById('saveToGithubBtn')?.addEventListener('click', function() {
     this.disabled = true;
     this.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
