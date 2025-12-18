@@ -11,3 +11,4 @@ typing_extensions==4.15.0
 urllib3==2.5.0
 GitPython==3.1.43
 djangorestframework==3.16.1
+djangorestframework-simplejwt==5.3.1

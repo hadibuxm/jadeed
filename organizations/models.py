@@ -2,6 +2,7 @@ from django.db import models
 from django.contrib.auth.models import User
 from django.core.validators import MinValueValidator
 from decimal import Decimal
+from django.utils.text import slugify
 
 
 class Organization(models.Model):
@@ -43,7 +44,15 @@ class Organization(models.Model):
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-
+    
+    def save(self, *args, **kwargs):
+        # Ensure the slug is unique
+        original_slug = self.slug
+        counter = 1
+        while Organization.objects.filter(slug=self.slug).exists():
+            self.slug = f"{original_slug}-{counter}"
+            counter += 1
+        super().save(*args, **kwargs)
     class Meta:
         ordering = ['name']
         verbose_name = 'Organization'

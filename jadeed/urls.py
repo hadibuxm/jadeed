@@ -23,6 +23,7 @@ urlpatterns = [
     path("", home_redirect, name="home"),
     path("admin/", admin.site.urls),
     path("accounts/", include(("apps.accounts.urls", "accounts"), namespace="accounts")),
+    path("rest-accounts/", include(("apps.rest_accounts.urls", "rest_accounts"), namespace="rest_accounts")),
     path("jira/", include(("apps.jira.urls", "jira"), namespace="jira")),
     path('aiengine/', include('aiengine.urls')),
     path('github/', include(('github.urls', 'github'), namespace='github')),
