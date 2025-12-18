@@ -34,8 +34,11 @@ SECRET_KEY = "django-insecure-3i^2+x^+e8=nsfl-mdh89!!#!t(ymgq6u^z71x6$-af$#!lpt(
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ["*"]
-
+ALLOWED_HOSTS = ['app.jadeed.io', 'www.jadeed.io', "64.23.227.173"]
+CSRF_TRUSTED_ORIGINS = [
+    'https://app.jadeed.io',
+    'https://www.jadeed.io',
+]
 
 # Application definition
 
