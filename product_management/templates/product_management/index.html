@@ -176,6 +176,12 @@
     font-size: 0.8rem;
     font-weight: 600;
 }
+
+.repo-checkbox-list {
+    max-height: 220px;
+    overflow-y: auto;
+    background: #fff;
+}
 </style>
 {% endblock %}
 
@@ -276,7 +282,7 @@
                             <option value="">-- Select a Feature --</option>
                             {% for status, items in items_by_status.items %}
                                 {% for feature in items.features %}
-                                <option value="{{ feature.workflow_step.id }}" data-url="{% url 'product_management:feature_steps' feature.workflow_step.id %}" data-title="{{ feature.workflow_step.title }}">
+                                <option value="{{ feature.workflow_step.id }}" data-url="{% url 'product_management:workflow_chat' feature.workflow_step.id %}" data-title="{{ feature.workflow_step.title }}">
                                     {% if feature.workflow_step.reference_id %}[{{ feature.workflow_step.reference_id }}] {% endif %}{{ feature.workflow_step.title }}
                                     {% if feature.workflow_step.parent_step %}
                                         ({{ feature.workflow_step.parent_step.title }})
@@ -357,7 +363,7 @@
                         {% endif %}
                     </span>
                     <div class="kanban-card-actions">
-                        <a href="{% url 'product_management:feature_steps' feature.workflow_step.id %}" title="Open">
+                        <a href="{% url 'product_management:workflow_chat' feature.workflow_step.id %}" title="Open">
                             <i class="fas fa-external-link-alt"></i>
                         </a>
                     </div>
@@ -430,7 +436,7 @@
                         {% endif %}
                     </span>
                     <div class="kanban-card-actions">
-                        <a href="{% url 'product_management:feature_steps' feature.workflow_step.id %}" title="Open">
+                        <a href="{% url 'product_management:workflow_chat' feature.workflow_step.id %}" title="Open">
                             <i class="fas fa-external-link-alt"></i>
                         </a>
                     </div>
@@ -503,7 +509,7 @@
                         {% endif %}
                     </span>
                     <div class="kanban-card-actions">
-                        <a href="{% url 'product_management:feature_steps' feature.workflow_step.id %}" title="Open">
+                        <a href="{% url 'product_management:workflow_chat' feature.workflow_step.id %}" title="Open">
                             <i class="fas fa-external-link-alt"></i>
                         </a>
                     </div>
@@ -576,7 +582,7 @@
                         {% endif %}
                     </span>
                     <div class="kanban-card-actions">
-                        <a href="{% url 'product_management:feature_steps' feature.workflow_step.id %}" title="Open">
+                        <a href="{% url 'product_management:workflow_chat' feature.workflow_step.id %}" title="Open">
                             <i class="fas fa-external-link-alt"></i>
                         </a>
                     </div>
@@ -715,8 +721,11 @@
                     <div class="mb-4" id="productRepoGroup" style="display: none;">
                         {% if has_github %}
                         <label class="form-label fw-bold">GitHub Repositories *</label>
-                        <select class="form-select" id="workflowRepoSelect" multiple size="6">
-                        </select>
+                        <div class="border rounded repo-checkbox-list" id="workflowRepoChecklist">
+                            <div class="p-3 text-muted small" id="workflowRepoEmptyState">
+                                Loading repositories...
+                            </div>
+                        </div>
                         <small class="text-muted">Select one or more repositories to link with this product</small>
                         {% else %}
                         <div class="alert alert-info mb-0">
@@ -818,7 +827,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const statusSelectGroup = document.getElementById('workflowStatusSelectGroup');
     const productRepoGroup = document.getElementById('productRepoGroup');
     const featureRepoGroup = document.getElementById('featureRepoGroup');
-    const workflowRepoSelect = document.getElementById('workflowRepoSelect');
+    const workflowRepoChecklist = document.getElementById('workflowRepoChecklist');
     const workflowProductSelect = document.getElementById('workflowProductSelect');
     const workflowFeatureRepoSelect = document.getElementById('workflowFeatureRepoSelect');
     const featureRepoHelp = document.getElementById('featureRepoHelp');
@@ -959,6 +968,13 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    function clearProductRepoSelections() {
+        if (!workflowRepoChecklist) return;
+        workflowRepoChecklist.querySelectorAll('input[type="checkbox"]').forEach(cb => {
+            cb.checked = false;
+        });
+    }
+
     function updateFeatureRepoOptions(productStepId) {
         if (!workflowFeatureRepoSelect) {
             return;
@@ -1019,9 +1035,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     }
                 } else {
                     productRepoGroup.style.display = 'none';
-                    if (workflowRepoSelect) {
-                        Array.from(workflowRepoSelect.options).forEach(option => option.selected = false);
-                    }
+                    clearProductRepoSelections();
                 }
             }
             if (featureRepoGroup) {
@@ -1067,9 +1081,9 @@ document.addEventListener('DOMContentLoaded', function() {
         let status = 'backlog'; // Default status
 
         let repositoryIds = [];
-        if (workflowRepoSelect) {
-            repositoryIds = Array.from(workflowRepoSelect.selectedOptions || [])
-                .map(option => option.value)
+        if (workflowRepoChecklist) {
+            repositoryIds = Array.from(workflowRepoChecklist.querySelectorAll('input[type="checkbox"]:checked'))
+                .map(input => input.value)
                 .filter(Boolean);
         }
 
@@ -1284,21 +1298,30 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         }
 
-        if (workflowRepoSelect) {
-            workflowRepoSelect.innerHTML = '';
+        if (workflowRepoChecklist) {
+            workflowRepoChecklist.innerHTML = '';
             if (repositories.length) {
                 repositories.forEach(repo => {
-                    const option = document.createElement('option');
-                    option.value = repo.id;
-                    option.textContent = repo.full_name;
-                    workflowRepoSelect.appendChild(option);
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'form-check border-bottom py-2 px-4';
+                    const input = document.createElement('input');
+                    input.className = 'form-check-input';
+                    input.type = 'checkbox';
+                    input.value = repo.id;
+                    input.id = `repo-option-${repo.id}`;
+                    const label = document.createElement('label');
+                    label.className = 'form-check-label';
+                    label.htmlFor = input.id;
+                    label.innerHTML = `${repo.full_name}<br><small class="text-muted">${repo.description || ''}</small>`;
+                    wrapper.appendChild(input);
+                    wrapper.appendChild(label);
+                    workflowRepoChecklist.appendChild(wrapper);
                 });
             } else {
-                const emptyOption = document.createElement('option');
-                emptyOption.value = '';
-                emptyOption.disabled = true;
-                emptyOption.textContent = 'No repositories found';
-                workflowRepoSelect.appendChild(emptyOption);
+                const emptyDiv = document.createElement('div');
+                emptyDiv.className = 'p-3 text-muted small';
+                emptyDiv.textContent = 'No repositories found. Create one to proceed.';
+                workflowRepoChecklist.appendChild(emptyDiv);
             }
         }
     }
