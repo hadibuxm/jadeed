@@ -33,13 +33,17 @@ class JwtSignupView(APIView):
 
     def post(self, request, *args, **kwargs):
         serializer = SignupSerializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-
+        try:
+            serializer.is_valid(raise_exception=True)
+        except ValidationError as e:
+            raise
+        
         form = serializer.form
         try:
             user, organization, member = create_user_with_organization(form)
         except IntegrityError as exc:
-            raise ValidationError(self._map_integrity_error(exc)) from exc
+            error_detail = self._map_integrity_error(exc)
+            raise ValidationError(error_detail) from exc
 
         # Maintain compatibility with existing flows by logging the user in.
         login(request, user)
