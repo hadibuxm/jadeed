@@ -117,3 +117,24 @@ class JwtLogoutView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class UserProfileView(APIView):
+    """
+    Get current user profile information.
+    """
+    
+    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def get(self, request, *args, **kwargs):
+        member = get_user_organization_member(request.user)
+        return Response(
+            {
+                "success": True,
+                "data": {
+                    "user": serialize_user(request.user, member=member)
+                }
+            },
+            status=status.HTTP_200_OK,
+        )

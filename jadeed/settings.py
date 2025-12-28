@@ -88,18 +88,14 @@ CORS_ALLOW_HEADERS = [
     "dnt",
     "origin",
     "user-agent",
-    "x-csrftoken",
     "x-requested-with",
 ]
 
-# CSRF Configuration for API
+# CSRF Configuration (only needed for template-based views)
 CSRF_TRUSTED_ORIGINS = [
     "http://localhost:3000",
     "http://127.0.0.1:3000",
 ]
-CSRF_COOKIE_HTTPONLY = False  # Allow JavaScript to read CSRF token
-CSRF_COOKIE_SAMESITE = 'Lax'
-CSRF_COOKIE_SECURE = False  # Set to True in production with HTTPS
 
 ROOT_URLCONF = "jadeed.urls"
 
