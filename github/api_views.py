@@ -6,7 +6,6 @@ import json
 import base64
 import secrets
 import logging
-import threading
 from datetime import datetime, timezone as dt_timezone
 from urllib.parse import urlencode
 from typing import Dict, Any, Optional
@@ -199,8 +198,13 @@ def github_callback(request):
         
         logger.info(f'GitHub connection {"created" if created else "updated"} for user {user.username}')
         
-        # Start background repository sync
-        start_background_sync(github_connection)
+        # Sync repositories synchronously to avoid race condition
+        try:
+            synced_count = sync_repositories_internal(github_connection)
+            logger.info(f'Synced {synced_count} repositories for user {user.username}')
+        except Exception as e:
+            logger.error(f'Error syncing repositories during OAuth: {str(e)}', exc_info=True)
+            # Continue with redirect even if sync fails - user can manually sync later
         
         # Clean up session
         cleanup_oauth_session(request)
@@ -249,20 +253,6 @@ def get_github_user_info(access_token: str) -> Dict[str, Any]:
     
     response = make_github_request(user_url, headers)
     return response.json()
-
-
-def start_background_sync(github_connection: GitHubConnection) -> None:
-    """Start repository sync in background thread."""
-    def sync_in_background():
-        try:
-            sync_repositories_internal(github_connection)
-            logger.info(f'Background sync completed for user {github_connection.user.username}')
-        except Exception as e:
-            logger.error(f'Background sync failed: {str(e)}')
-    
-    thread = threading.Thread(target=sync_in_background)
-    thread.daemon = True
-    thread.start()
 
 
 def cleanup_oauth_session(request) -> None:
@@ -329,6 +319,8 @@ def github_disconnect(request):
 
 def sync_repositories_internal(github_connection: GitHubConnection) -> int:
     """Internal function to sync repositories from GitHub."""
+    logger.info(f'Starting repository sync for user {github_connection.user.username}')
+    
     repos_url = f'{GITHUB_API_BASE_URL}/user/repos'
     headers = {
         'Authorization': f'Bearer {github_connection.access_token}',
@@ -346,6 +338,7 @@ def sync_repositories_internal(github_connection: GitHubConnection) -> int:
         params['page'] = page
         
         try:
+            logger.info(f'Fetching repositories page {page} for user {github_connection.user.username}')
             response = make_github_request(repos_url, headers, params)
             repos = response.json()
             
@@ -353,11 +346,14 @@ def sync_repositories_internal(github_connection: GitHubConnection) -> int:
                 break
             
             all_repos.extend(repos)
+            logger.info(f'Fetched {len(repos)} repositories from page {page}')
             page += 1
             
         except requests.RequestException as e:
             logger.error(f'Error fetching repositories page {page}: {str(e)}')
             break
+    
+    logger.info(f'Total repositories fetched: {len(all_repos)} for user {github_connection.user.username}')
     
     # Save repositories to database
     saved_count = 0
@@ -396,5 +392,5 @@ def sync_repositories_internal(github_connection: GitHubConnection) -> int:
             logger.error(f'Error saving repository {repo_data.get("name", "unknown")}: {str(e)}')
             continue
     
-    logger.info(f'Synced {saved_count} repositories for user {github_connection.user.username}')
+    logger.info(f'Repository sync completed: {saved_count} repositories saved for user {github_connection.user.username}')
     return saved_count
