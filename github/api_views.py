@@ -255,6 +255,7 @@ def get_github_user_info(access_token: str) -> Dict[str, Any]:
     return response.json()
 
 
+
 def cleanup_oauth_session(request) -> None:
     """Clean up OAuth-related session data."""
     session_keys = ['github_oauth_state', 'github_oauth_user_id']
