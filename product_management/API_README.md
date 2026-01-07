@@ -44,6 +44,32 @@ JWT-protected endpoints for creating the product hierarchy. All paths are prefix
     -d '{"name":"Growth Portfolio","description":"All growth bets"}'
   ```
 
+## 2.1) List Portfolios (get all portfolios for the organization)
+- **GET** `portfolios/`
+- Returns all portfolios belonging to the authenticated user's organization
+- Example:
+  ```bash
+  curl -X GET http://localhost:8000/product-management/portfolios/ \
+    -H "Authorization: Bearer ACCESS_TOKEN"
+  ```
+- Response:
+  ```json
+  {
+    "success": true,
+    "data": [
+      {
+        "portfolio_id": 1,
+        "workflow_step_id": 123,
+        "name": "Growth Portfolio",
+        "description": "All growth bets",
+        "reference_id": "GRO-0001",
+        "status": "backlog",
+        "created_at": "2024-01-15T10:30:00Z"
+      }
+    ]
+  }
+  ```
+
 ## 3) Create Product (child of a portfolio)
 - **POST** `create-product/`
 - Body:

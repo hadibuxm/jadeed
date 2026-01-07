@@ -145,6 +145,63 @@ class CreatePortfolioAPIView(APIView):
         )
 
 
+class ListPortfoliosAPIView(APIView):
+    """List all portfolios for the authenticated user's organization."""
+    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def get(self, request, *args, **kwargs):
+        member = get_user_organization_member(request.user)
+        if not member:
+            return Response(
+                {
+                    "success": False,
+                    "errors": {
+                        "organization": ["No active organization membership found."]
+                    },
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            vision = member.organization.vision
+        except Vision.DoesNotExist:
+            return Response(
+                {
+                    "success": False,
+                    "errors": {
+                        "vision": ["No vision exists for this organization. Create one first."]
+                    },
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Get all portfolios that belong to this organization's vision
+        portfolios = Portfolio.objects.select_related('workflow_step').filter(
+            workflow_step__parent_step=vision.workflow_step
+        ).order_by('workflow_step__created_at')
+
+        portfolio_data = []
+        for portfolio in portfolios:
+            portfolio_data.append({
+                "portfolio_id": portfolio.id,
+                "workflow_step_id": portfolio.workflow_step.id,
+                "name": portfolio.workflow_step.title,
+                "description": portfolio.workflow_step.description,
+                "reference_id": portfolio.workflow_step.reference_id,
+                "status": portfolio.workflow_step.status,
+                "created_at": portfolio.workflow_step.created_at.isoformat(),
+            })
+
+        return Response(
+            {
+                "success": True,
+                "data": portfolio_data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
 class CreateProductAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     authentication_classes = [JWTAuthentication]
