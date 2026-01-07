@@ -1,5 +1,12 @@
 from django.urls import path
+
 from . import views
+from .api_views import (
+    CreateFeatureAPIView,
+    CreatePortfolioAPIView,
+    CreateProductAPIView,
+    CreateVisionAPIView,
+)
 
 app_name = 'product_management'
 
@@ -9,6 +16,10 @@ urlpatterns = [
     path('hierarchy/', views.hierarchy_view, name='hierarchy'),
     path('track-recent/', views.track_recent_item, name='track_recent_item'),
     path('update-status/', views.update_status, name='update_status'),
+    path('create-vision/', CreateVisionAPIView.as_view(), name='create_vision'),
+    path('create-portfolio/', CreatePortfolioAPIView.as_view(), name='create_portfolio'),
+    path('create-product/', CreateProductAPIView.as_view(), name='create_product'),
+    path('create-feature/', CreateFeatureAPIView.as_view(), name='create_feature'),
 
     # Project management
     path('project/create/', views.create_project, name='create_project'),

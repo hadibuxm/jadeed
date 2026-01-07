@@ -1,7 +1,8 @@
+import json
 from django.db import models
 from django.contrib.auth.models import User
 from github.models import GitHubRepository
-import json
+from organizations.models import Organization
 
 
 class Project(models.Model):
@@ -176,6 +177,9 @@ class WorkflowStep(models.Model):
             # Child must be exactly one level below parent
             if self.step_type == 'feature' and self.parent_step.step_type == 'product':
                 # This is valid: Product -> Feature
+                pass
+            elif self.step_type == 'portfolio' and self.parent_step.step_type == 'vision':
+                # Allow portfolios directly under a vision when skipping initiatives
                 pass
             elif child_level != parent_level + 1:
                 raise ValidationError(
@@ -374,6 +378,14 @@ class Vision(models.Model):
         on_delete=models.CASCADE,
         related_name='vision_details'
     )
+    organization = models.OneToOneField(
+        Organization,
+        on_delete=models.CASCADE,
+        related_name='vision',
+        null=True,
+        blank=True,
+        help_text='Organization-level vision (one per organization).'
+    )
     strategic_goals = models.TextField(blank=True)
     target_audience = models.TextField(blank=True)
     success_metrics = models.TextField(blank=True)
@@ -433,6 +445,12 @@ class Product(models.Model):
     value_proposition = models.TextField(blank=True)
     user_personas = models.TextField(blank=True)
     market_analysis = models.TextField(blank=True)
+    repositories = models.ManyToManyField(
+        GitHubRepository,
+        related_name='products',
+        blank=True,
+        help_text='Linked GitHub repositories for this product.'
+    )
 
     def __str__(self):
         return f"Product: {self.workflow_step.title}"
@@ -448,6 +466,14 @@ class Feature(models.Model):
         WorkflowStep,
         on_delete=models.CASCADE,
         related_name='feature_details'
+    )
+    repository = models.ForeignKey(
+        GitHubRepository,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='features',
+        help_text='Primary GitHub repository for this feature.'
     )
     user_story = models.TextField(blank=True)
     acceptance_criteria = models.TextField(blank=True)
