@@ -115,6 +115,25 @@ class CreatePortfolioAPIView(APIView):
             )
 
         data = serializer.validated_data
+        
+        # Check for duplicate portfolio name under this vision
+        duplicate_exists = WorkflowStep.objects.filter(
+            parent_step=vision.workflow_step,
+            step_type="portfolio",
+            title__iexact=data["name"]
+        ).exists()
+        
+        if duplicate_exists:
+            return Response(
+                {
+                    "success": False,
+                    "errors": {
+                        "name": ["A portfolio with this name already exists in this vision."]
+                    },
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
         with transaction.atomic():
             workflow_step = WorkflowStep.objects.create(
                 project=None,
@@ -251,6 +270,80 @@ class ListVisionsAPIView(APIView):
             )
 
 
+class ListProductsAPIView(APIView):
+    """List all products for the authenticated user's organization."""
+    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def get(self, request, *args, **kwargs):
+        member = get_user_organization_member(request.user)
+        if not member:
+            return Response(
+                {
+                    "success": False,
+                    "errors": {
+                        "organization": ["No active organization membership found."]
+                    },
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            vision = member.organization.vision
+        except Vision.DoesNotExist:
+            return Response(
+                {
+                    "success": False,
+                    "errors": {
+                        "vision": ["No vision exists for this organization. Create one first."]
+                    },
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Get all portfolios that belong to this organization's vision
+        portfolios = Portfolio.objects.select_related('workflow_step').filter(
+            workflow_step__parent_step=vision.workflow_step
+        )
+
+        # Get all products that belong to these portfolios
+        products = Product.objects.select_related('workflow_step').filter(
+            workflow_step__parent_step__in=[p.workflow_step for p in portfolios]
+        ).prefetch_related('repositories').order_by('workflow_step__created_at')
+
+        product_data = []
+        for product in products:
+            # Get the portfolio this product belongs to
+            portfolio = portfolios.filter(workflow_step=product.workflow_step.parent_step).first()
+            
+            product_data.append({
+                "product_id": product.id,
+                "workflow_step_id": product.workflow_step.id,
+                "portfolio_id": portfolio.id if portfolio else None,
+                "name": product.workflow_step.title,
+                "description": product.workflow_step.description,
+                "reference_id": product.workflow_step.reference_id,
+                "status": product.workflow_step.status,
+                "created_at": product.workflow_step.created_at.isoformat(),
+                "github_repositories": [
+                    {
+                        "id": repo.id,
+                        "name": repo.name,
+                        "full_name": repo.full_name
+                    }
+                    for repo in product.repositories.all()
+                ],
+            })
+
+        return Response(
+            {
+                "success": True,
+                "data": product_data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+
 class CreateProductAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     authentication_classes = [JWTAuthentication]
@@ -312,6 +405,24 @@ class CreateProductAPIView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        # Check for duplicate product name under this portfolio
+        duplicate_exists = WorkflowStep.objects.filter(
+            parent_step=portfolio.workflow_step,
+            step_type="product",
+            title__iexact=data["name"]
+        ).exists()
+        
+        if duplicate_exists:
+            return Response(
+                {
+                    "success": False,
+                    "errors": {
+                        "name": ["A product with this name already exists in this portfolio."]
+                    },
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
         repo_ids = data.get("github_repository_ids") or []
         repositories = list(
             GitHubRepository.objects.filter(
@@ -365,6 +476,87 @@ class CreateProductAPIView(APIView):
                 },
             },
             status=status.HTTP_201_CREATED,
+        )
+
+
+class ListFeaturesAPIView(APIView):
+    """List all features for the authenticated user's organization."""
+    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def get(self, request, *args, **kwargs):
+        member = get_user_organization_member(request.user)
+        if not member:
+            return Response(
+                {
+                    "success": False,
+                    "errors": {
+                        "organization": ["No active organization membership found."]
+                    },
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            vision = member.organization.vision
+        except Vision.DoesNotExist:
+            return Response(
+                {
+                    "success": False,
+                    "errors": {
+                        "vision": ["No vision exists for this organization. Create one first."]
+                    },
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Get all portfolios that belong to this organization's vision
+        portfolios = Portfolio.objects.select_related('workflow_step').filter(
+            workflow_step__parent_step=vision.workflow_step
+        )
+
+        # Get all products that belong to these portfolios
+        products = Product.objects.select_related('workflow_step').filter(
+            workflow_step__parent_step__in=[p.workflow_step for p in portfolios]
+        )
+
+        # Get all features that belong to these products
+        features = Feature.objects.select_related('workflow_step', 'repository').filter(
+            workflow_step__parent_step__in=[p.workflow_step for p in products]
+        ).order_by('workflow_step__created_at')
+
+        feature_data = []
+        for feature in features:
+            # Get the product this feature belongs to
+            product = products.filter(workflow_step=feature.workflow_step.parent_step).first()
+            
+            feature_data.append({
+                "feature_id": feature.id,
+                "workflow_step_id": feature.workflow_step.id,
+                "product_id": product.id if product else None,
+                "name": feature.workflow_step.title,
+                "description": feature.workflow_step.description,
+                "reference_id": feature.workflow_step.reference_id,
+                "status": feature.workflow_step.status,
+                "priority": feature.priority,
+                "created_at": feature.workflow_step.created_at.isoformat(),
+                "github_repository": (
+                    {
+                        "id": feature.repository.id,
+                        "name": feature.repository.name,
+                        "full_name": feature.repository.full_name
+                    }
+                    if feature.repository
+                    else None
+                ),
+            })
+
+        return Response(
+            {
+                "success": True,
+                "data": feature_data,
+            },
+            status=status.HTTP_200_OK,
         )
 
 
@@ -429,6 +621,24 @@ class CreateFeatureAPIView(APIView):
                 status=status.HTTP_403_FORBIDDEN,
             )
 
+        # Check for duplicate feature name under this product
+        duplicate_exists = WorkflowStep.objects.filter(
+            parent_step=product.workflow_step,
+            step_type="feature",
+            title__iexact=data["name"]
+        ).exists()
+        
+        if duplicate_exists:
+            return Response(
+                {
+                    "success": False,
+                    "errors": {
+                        "name": ["A feature with this name already exists in this product."]
+                    },
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
         repo = None
         repo_id = data.get("github_repository_id")
         if repo_id is not None:

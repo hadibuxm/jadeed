@@ -6,7 +6,9 @@ from .api_views import (
     CreatePortfolioAPIView,
     CreateProductAPIView,
     CreateVisionAPIView,
+    ListFeaturesAPIView,
     ListPortfoliosAPIView,
+    ListProductsAPIView,
     ListVisionsAPIView,
 )
 
@@ -22,6 +24,8 @@ urlpatterns = [
     path('vision/', ListVisionsAPIView.as_view(), name='list_vision'),
     path('create-portfolio/', CreatePortfolioAPIView.as_view(), name='create_portfolio'),
     path('portfolios/', ListPortfoliosAPIView.as_view(), name='list_portfolios'),
+    path('products/', ListProductsAPIView.as_view(), name='list_products'),
+    path('features/', ListFeaturesAPIView.as_view(), name='list_features'),
     path('create-product/', CreateProductAPIView.as_view(), name='create_product'),
     path('create-feature/', CreateFeatureAPIView.as_view(), name='create_feature'),
 
