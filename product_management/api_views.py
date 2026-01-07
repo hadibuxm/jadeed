@@ -424,6 +424,21 @@ class CreateProductAPIView(APIView):
             )
         
         repo_ids = data.get("github_repository_ids") or []
+        
+        # Validate that at least one repository is provided
+        if not repo_ids or len(repo_ids) == 0:
+            return Response(
+                {
+                    "success": False,
+                    "errors": {
+                        "github_repository_ids": [
+                            "At least one GitHub repository is required for product creation."
+                        ]
+                    },
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        
         repositories = list(
             GitHubRepository.objects.filter(
                 id__in=repo_ids,
