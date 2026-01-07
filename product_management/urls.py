@@ -7,6 +7,7 @@ from .api_views import (
     CreateProductAPIView,
     CreateVisionAPIView,
     ListPortfoliosAPIView,
+    ListVisionsAPIView,
 )
 
 app_name = 'product_management'
@@ -18,6 +19,7 @@ urlpatterns = [
     path('track-recent/', views.track_recent_item, name='track_recent_item'),
     path('update-status/', views.update_status, name='update_status'),
     path('create-vision/', CreateVisionAPIView.as_view(), name='create_vision'),
+    path('vision/', ListVisionsAPIView.as_view(), name='list_vision'),
     path('create-portfolio/', CreatePortfolioAPIView.as_view(), name='create_portfolio'),
     path('portfolios/', ListPortfoliosAPIView.as_view(), name='list_portfolios'),
     path('create-product/', CreateProductAPIView.as_view(), name='create_product'),

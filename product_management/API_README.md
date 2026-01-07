@@ -27,6 +27,30 @@ JWT-protected endpoints for creating the product hierarchy. All paths are prefix
     -d '{"name":"Customer-Centric AI","description":"Streamline support with AI."}'
   ```
 
+## 1.1) Get Vision (check if vision exists for the organization)
+- **GET** `vision/`
+- Returns the vision for the authenticated user's organization
+- Example:
+  ```bash
+  curl -X GET http://localhost:8000/product-management/vision/ \
+    -H "Authorization: Bearer ACCESS_TOKEN"
+  ```
+- Response:
+  ```json
+  {
+    "success": true,
+    "data": {
+      "vision_id": 1,
+      "workflow_step_id": 123,
+      "name": "Customer-Centric AI",
+      "description": "Streamline support with AI",
+      "reference_id": "CUS-0001",
+      "status": "backlog",
+      "created_at": "2024-01-15T10:30:00Z"
+    }
+  }
+  ```
+
 ## 2) Create Portfolio (child of the organization’s vision)
 - **POST** `create-portfolio/`
 - Body:

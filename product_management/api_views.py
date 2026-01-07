@@ -202,6 +202,55 @@ class ListPortfoliosAPIView(APIView):
         )
 
 
+class ListVisionsAPIView(APIView):
+    """List vision for the authenticated user's organization."""
+    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def get(self, request, *args, **kwargs):
+        member = get_user_organization_member(request.user)
+        if not member:
+            return Response(
+                {
+                    "success": False,
+                    "errors": {
+                        "organization": ["No active organization membership found."]
+                    },
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        try:
+            vision = member.organization.vision
+            vision_data = {
+                "vision_id": vision.id,
+                "workflow_step_id": vision.workflow_step.id,
+                "name": vision.workflow_step.title,
+                "description": vision.workflow_step.description,
+                "reference_id": vision.workflow_step.reference_id,
+                "status": vision.workflow_step.status,
+                "created_at": vision.workflow_step.created_at.isoformat(),
+            }
+            
+            return Response(
+                {
+                    "success": True,
+                    "data": vision_data,
+                },
+                status=status.HTTP_200_OK,
+            )
+        except Vision.DoesNotExist:
+            return Response(
+                {
+                    "success": False,
+                    "errors": {
+                        "vision": ["No vision exists for this organization. Create one first."]
+                    },
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+
 class CreateProductAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     authentication_classes = [JWTAuthentication]
