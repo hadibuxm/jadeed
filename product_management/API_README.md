@@ -143,3 +143,29 @@ JWT-protected endpoints for creating the product hierarchy. All paths are prefix
       "github_repository_id":10
     }'
   ```
+
+## 5) Workflow Conversation (chat with AI)
+- **POST** `rest-workflow/<step_id>/message/`
+- Body:
+  ```json
+  {
+    "message": "What should we build next?",
+    "stream": true
+  }
+  ```
+- Notes: `stream` defaults to `true` for server-sent events; set to `false` for a single JSON response.
+- Example (streaming):
+  ```bash
+  curl -N -X POST http://localhost:8000/product-management/rest-workflow/123/message/ \
+    -H "Authorization: Bearer ACCESS_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"message":"Summarize the discussion"}'
+  ```
+
+- **GET** `rest-workflow/<step_id>/conversation/`
+- Returns the stored conversation, README content (if any), and completion status.
+- Example:
+  ```bash
+  curl -X GET http://localhost:8000/product-management/rest-workflow/123/conversation/ \
+    -H "Authorization: Bearer ACCESS_TOKEN"
+  ```

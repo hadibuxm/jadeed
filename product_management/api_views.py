@@ -1,4 +1,6 @@
 from django.db import transaction
+from django.http import StreamingHttpResponse
+from django.shortcuts import get_object_or_404
 from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -8,12 +10,22 @@ from organizations.permissions import get_user_organization_member
 from github.models import GitHubRepository
 
 from .models import Vision, WorkflowStep, Portfolio, Product, Feature
+from .ai_service import ProductDiscoveryAI
 from .serializers import (
     VisionCreateSerializer,
     PortfolioCreateSerializer,
     ProductCreateSerializer,
     FeatureCreateSerializer,
 )
+
+
+def _can_access_workflow_step(step: WorkflowStep, user) -> bool:
+    """Check if the requesting user owns the workflow step."""
+    if step.project:
+        return step.project.user_id == user.id
+    if step.user_id:
+        return step.user_id == user.id
+    return False
 
 
 class CreateVisionAPIView(APIView):
@@ -707,4 +719,67 @@ class CreateFeatureAPIView(APIView):
                 },
             },
             status=status.HTTP_201_CREATED,
+        )
+
+
+class WorkflowMessageAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def post(self, request, step_id, *args, **kwargs):
+        workflow_step = get_object_or_404(WorkflowStep, id=step_id)
+
+        if not _can_access_workflow_step(workflow_step, request.user):
+            return Response(
+                {"success": False, "error": "Workflow step not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        message = (request.data.get("message") or "").strip()
+        use_streaming = request.data.get("stream", True)
+        if isinstance(use_streaming, str):
+            use_streaming = use_streaming.lower() != "false"
+
+        if not message:
+            return Response(
+                {"success": False, "error": "Message cannot be empty."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        ai_service = ProductDiscoveryAI(workflow_step)
+
+        if use_streaming:
+            response = StreamingHttpResponse(
+                ai_service.send_message_stream(message),
+                content_type="text/event-stream",
+            )
+            response["Cache-Control"] = "no-cache"
+            response["X-Accel-Buffering"] = "no"
+            return response
+
+        result = ai_service.send_message(message)
+        return Response(result, status=status.HTTP_200_OK)
+
+
+class WorkflowConversationAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def get(self, request, step_id, *args, **kwargs):
+        workflow_step = get_object_or_404(WorkflowStep, id=step_id)
+
+        if not _can_access_workflow_step(workflow_step, request.user):
+            return Response(
+                {"success": False, "error": "Workflow step not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        return Response(
+            {
+                "success": True,
+                "conversation": workflow_step.conversation_history,
+                "readme_content": workflow_step.readme_content,
+                "is_completed": workflow_step.is_completed,
+            },
+            status=status.HTTP_200_OK,
         )
