@@ -203,3 +203,32 @@ JWT-protected endpoints for creating the product hierarchy. All paths are prefix
     "message": "README generated and saved to GitHub!"
   }
   ```
+
+## 7) Get Workflow Page Info (page-info)
+- **GET** `rest-workflow/<step_id>/page-info/`
+- Returns all data needed to render the workflow chat page (step details, hierarchy, conversation, comments, actions, documents, `readme_content`).
+- Example:
+  ```bash
+  curl -X GET http://localhost:8000/product-management/rest-workflow/123/page-info/ \
+    -H "Authorization: Bearer ACCESS_TOKEN"
+  ```
+- Response (truncated):
+  ```json
+  {
+    "success": true,
+    "workflow_step": { "id": 123, "title": "Feature ABC", "step_type": "feature", ... },
+    "hierarchy": [
+      { "id": 1, "title": "Vision", "step_type": "vision", ... },
+      { "id": 10, "title": "Portfolio", "step_type": "portfolio", ... },
+      { "id": 50, "title": "Product", "step_type": "product", ... },
+      { "id": 123, "title": "Feature ABC", "step_type": "feature", ... }
+    ],
+    "conversation": [...],
+    "readme_content": "... markdown ...",
+    "comments": [...],
+    "comment_count": 3,
+    "actions": [...],
+    "documents": [...],
+    "document_count": 2
+  }
+  ```

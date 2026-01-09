@@ -57,6 +57,54 @@ def _to_bool(value):
     return False
 
 
+def _format_user_display(user):
+    if not user:
+        return "System"
+    display_name = (user.get_full_name() or "").strip()
+    return display_name or user.username
+
+
+def _serialize_workflow_comment(comment, current_user=None):
+    created = timezone.localtime(comment.created_at)
+    return {
+        "id": comment.id,
+        "user": _format_user_display(comment.user),
+        "content": comment.content,
+        "created_at": created.strftime("%b %d, %Y %H:%M"),
+        "created_at_iso": created.isoformat(),
+        "is_owner": bool(current_user and comment.user_id == current_user.id),
+    }
+
+
+def _serialize_action_log(action):
+    metadata = action.metadata or {}
+    created = timezone.localtime(action.created_at)
+    return {
+        "id": action.id,
+        "action_type": action.action_type,
+        "action_label": action.get_action_type_display(),
+        "user": metadata.get("display_user") or _format_user_display(action.user),
+        "description": action.description,
+        "created_at": created.strftime("%b %d, %Y %H:%M"),
+        "created_at_iso": created.isoformat(),
+        "metadata": metadata,
+    }
+
+
+def _serialize_workflow_step(step: WorkflowStep):
+    return {
+        "id": step.id,
+        "title": step.title,
+        "step_type": step.step_type,
+        "status": step.status,
+        "reference_id": step.reference_id,
+        "description": step.description,
+        "parent_id": step.parent_step_id,
+        "project_id": step.project_id,
+        "created_at": step.created_at.isoformat(),
+    }
+
+
 class CreateVisionAPIView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     authentication_classes = [JWTAuthentication]
@@ -904,3 +952,55 @@ class WorkflowGenerateReadmeAPIView(APIView):
                 {"success": False, "error": str(exc)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+
+class WorkflowPageInfoAPIView(APIView):
+    """Return the data needed to render the workflow chat page."""
+    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def get(self, request, step_id, *args, **kwargs):
+        workflow_step = get_object_or_404(WorkflowStep, id=step_id)
+
+        if not _can_access_workflow_step(workflow_step, request.user):
+            return Response(
+                {"success": False, "error": "Workflow step not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Build hierarchy breadcrumbs
+        hierarchy = []
+        current = workflow_step
+        while current:
+            hierarchy.insert(0, current)
+            current = current.parent_step
+
+        recent_comments = list(
+            workflow_step.comments.select_related("user").order_by("-created_at")[:50]
+        )
+        action_logs = list(
+            workflow_step.action_logs.select_related("user").order_by("-created_at")[:50]
+        )
+        documents = list(
+            workflow_step.documents.select_related("created_by").order_by("-created_at")
+        )
+
+        return Response(
+            {
+                "success": True,
+                "workflow_step": _serialize_workflow_step(workflow_step),
+                "project": workflow_step.project_id,
+                "hierarchy": [_serialize_workflow_step(step) for step in hierarchy],
+                "conversation": workflow_step.conversation_history or [],
+                "readme_content": workflow_step.readme_content,
+                "comments": [
+                    _serialize_workflow_comment(comment, request.user)
+                    for comment in reversed(recent_comments)
+                ],
+                "comment_count": workflow_step.comments.count(),
+                "actions": [_serialize_action_log(action) for action in action_logs],
+                "documents": [_serialize_document(doc) for doc in documents],
+                "document_count": len(documents),
+            },
+            status=status.HTTP_200_OK,
+        )

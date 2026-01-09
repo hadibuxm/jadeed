@@ -13,6 +13,7 @@ from .api_views import (
     WorkflowConversationAPIView,
     WorkflowGenerateReadmeAPIView,
     WorkflowMessageAPIView,
+    WorkflowPageInfoAPIView,
 )
 
 app_name = 'product_management'
@@ -54,6 +55,7 @@ urlpatterns = [
     path('workflow/<int:step_id>/actions/log/', views.create_workflow_action, name='create_workflow_action'),
     path('workflow/<int:step_id>/documents/', views.workflow_documents, name='workflow_documents'),
     path('workflow/<int:step_id>/conversation/', views.get_conversation, name='get_conversation'),
+    path('rest-workflow/<int:step_id>/page-info/', WorkflowPageInfoAPIView.as_view(), name='page-info'),
     path('rest-workflow/<int:step_id>/conversation/', WorkflowConversationAPIView.as_view(), name='rest_get_conversation'),
     path('rest-workflow/<int:step_id>/readme/', WorkflowGenerateReadmeAPIView.as_view(), name='rest-generate-readme'),
     path('workflow/<int:step_id>/readme/', views.generate_readme, name='generate_readme'),
