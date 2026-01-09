@@ -1,3 +1,4 @@
+import logging
 from django.db import transaction
 from django.http import StreamingHttpResponse
 from django.shortcuts import get_object_or_404
@@ -5,6 +6,7 @@ from rest_framework import permissions, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.authentication import JWTAuthentication
+from django.utils import timezone
 
 from organizations.permissions import get_user_organization_member
 from github.models import GitHubRepository
@@ -19,12 +21,39 @@ from .serializers import (
 )
 
 
+logger = logging.getLogger(__name__)
+
+
 def _can_access_workflow_step(step: WorkflowStep, user) -> bool:
     """Check if the requesting user owns the workflow step."""
     if step.project:
         return step.project.user_id == user.id
     if step.user_id:
         return step.user_id == user.id
+    return False
+
+
+def _serialize_document(document):
+    """Serialize workflow document for API responses."""
+    created = timezone.localtime(document.created_at)
+    return {
+        "id": document.id,
+        "title": document.title,
+        "document_type": document.document_type,
+        "document_label": document.get_document_type_display(),
+        "user": document.created_by.username if document.created_by else "System",
+        "source": document.source,
+        "content": document.content,
+        "created_at": created.isoformat(),
+    }
+
+
+def _to_bool(value):
+    """Coerce typical truthy inputs to boolean."""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.lower() == "true"
     return False
 
 
@@ -783,3 +812,95 @@ class WorkflowConversationAPIView(APIView):
             },
             status=status.HTTP_200_OK,
         )
+
+
+class WorkflowGenerateReadmeAPIView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    authentication_classes = [JWTAuthentication]
+
+    def post(self, request, step_id, *args, **kwargs):
+        workflow_step = get_object_or_404(WorkflowStep, id=step_id)
+
+        if not _can_access_workflow_step(workflow_step, request.user):
+            return Response(
+                {"success": False, "error": "Workflow step not found."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        try:
+            if workflow_step.status != "in_progress":
+                workflow_step.status = "in_progress"
+                workflow_step.save(update_fields=["status"])
+
+            ai_service = ProductDiscoveryAI(workflow_step)
+            result = ai_service.generate_readme()
+            response_data = dict(result)
+            document_entry = None
+
+            if result.get("success"):
+                readme_content = result.get("readme_content") or workflow_step.readme_content
+                if readme_content:
+                    document_entry = workflow_step.save_document_version(
+                        title=f"README - {timezone.localtime(timezone.now()).strftime('%b %d, %Y %H:%M')}",
+                        content=readme_content,
+                        document_type="readme",
+                        user=request.user,
+                        source="ai",
+                    )
+                    workflow_step.log_action(
+                        "readme_generated",
+                        request.user,
+                        description=document_entry.title,
+                        metadata={"document_id": document_entry.id},
+                    )
+                    response_data["document"] = _serialize_document(document_entry)
+
+                save_to_github = _to_bool(request.data.get("save_to_github")) or _to_bool(
+                    request.query_params.get("save_to_github")
+                )
+
+                target_repository = None
+                if workflow_step.step_type == "feature":
+                    try:
+                        target_repository = workflow_step.feature_details.repository
+                    except Feature.DoesNotExist:
+                        target_repository = None
+                elif workflow_step.project:
+                    target_repository = workflow_step.project.github_repository
+
+                if save_to_github and target_repository:
+                    try:
+                        github_connection = request.user.github_connection
+                        github_result = ai_service.save_readme_to_github(
+                            github_connection, target_repository
+                        )
+                        if github_result.get("success"):
+                            response_data["github_url"] = github_result.get("url")
+                            response_data["github_file_path"] = github_result.get("file_path")
+                            response_data["message"] = "README generated and saved to GitHub!"
+                            workflow_step.log_action(
+                                "document_saved",
+                                request.user,
+                                description=f"README pushed to GitHub ({github_result.get('file_path')})",
+                                metadata={
+                                    "document_id": document_entry.id if document_entry else None,
+                                    "github_url": github_result.get("url"),
+                                },
+                            )
+                        else:
+                            response_data["github_error"] = github_result.get("error", "Unknown error")
+                            response_data["message"] = "README generated but failed to save to GitHub"
+                    except Exception as github_error:  # pragma: no cover - defensive
+                        logger.error("Error saving README to GitHub", exc_info=True)
+                        response_data["github_error"] = str(github_error)
+                        response_data["message"] = "README generated but failed to save to GitHub"
+
+            status_code = status.HTTP_200_OK if result.get("success") else status.HTTP_400_BAD_REQUEST
+            return Response(response_data, status=status_code)
+
+        except Exception as exc:  # pragma: no cover - defensive
+            logger.error(f"Error generating README: {exc}", exc_info=True)
+            return Response(
+                {"success": False, "error": str(exc)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )

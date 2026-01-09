@@ -169,3 +169,37 @@ JWT-protected endpoints for creating the product hierarchy. All paths are prefix
   curl -X GET http://localhost:8000/product-management/rest-workflow/123/conversation/ \
     -H "Authorization: Bearer ACCESS_TOKEN"
   ```
+
+## 6) Generate README for a Workflow Step
+- **POST** `rest-workflow/<step_id>/readme/`
+- Optional query/body flag: `save_to_github` (`true`/`false`) to push the README to the linked repository (feature repo or project repo).
+- Example (generate only):
+  ```bash
+  curl -X POST http://localhost:8000/product-management/rest-workflow/123/readme/ \
+    -H "Authorization: Bearer ACCESS_TOKEN"
+  ```
+- Example (generate and push to GitHub):
+  ```bash
+  curl -X POST "http://localhost:8000/product-management/rest-workflow/123/readme/?save_to_github=true" \
+    -H "Authorization: Bearer ACCESS_TOKEN"
+  ```
+- Response (success):
+  ```json
+  {
+    "success": true,
+    "readme_content": "... markdown ...",
+    "document": {
+      "id": 5,
+      "title": "README - Jan 15, 2024 10:30",
+      "document_type": "readme",
+      "document_label": "README",
+      "user": "alice",
+      "source": "ai",
+      "content": "...",
+      "created_at": "2024-01-15T10:30:00-05:00"
+    },
+    "github_url": "https://github.com/org/repo/blob/main/product_discovery/.../README.md",
+    "github_file_path": "product_discovery/.../README.md",
+    "message": "README generated and saved to GitHub!"
+  }
+  ```
