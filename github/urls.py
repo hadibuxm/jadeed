@@ -10,6 +10,8 @@ api_urlpatterns = [
     path('api/callback/', api_views.github_callback, name='api_callback'),
     path('api/sync/', api_views.github_sync, name='api_sync'),
     path('api/disconnect/', api_views.github_disconnect, name='api_disconnect'),
+    path('api/request-code-change/', api_views.request_code_change, name='rest-request-code-change'),
+    path('api/code-change-status/<int:request_id>/', api_views.code_change_status, name='rest-code-change-status'),
 ]
 
 # Legacy template-based views (keep for backward compatibility)

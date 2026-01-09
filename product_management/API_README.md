@@ -232,3 +232,47 @@ JWT-protected endpoints for creating the product hierarchy. All paths are prefix
     "document_count": 2
   }
   ```
+
+## 8) GitHub Code Change (REST)
+- **POST** `/github/api/request-code-change/`
+- Description: Submit an AI-powered code change request for one of your synced GitHub repositories. Runs asynchronously and returns a request ID you can track via the existing GitHub UI/status endpoints.
+- Body:
+  ```json
+  {
+    "repo_id": 10
+  }
+  ```
+- Example:
+  ```bash
+  curl -X POST http://localhost:8000/github/api/request-code-change/ \
+    -H "Authorization: Bearer ACCESS_TOKEN" \
+    -H "Content-Type: application/json" \
+    -d '{"repo_id":10}'
+  ```
+- Notes:
+  - Requires a connected GitHub account and a repository that belongs to the authenticated user.
+  - The API automatically uses the most recently generated README document (for the feature tied to that repository) as the change request payload; generate/sync a README first.
+  - Processing happens in the background; the response includes `request_id` to check status via `/github/code-change-status/<request_id>/` (HTML view) or the GitHub UI.
+  - Existing API behavior remains unchanged; this is the REST equivalent of the template-based endpoint.
+
+### 8.1) Check Code Change Status (REST)
+- **GET** `/github/api/code-change-status/<request_id>/`
+- Description: Retrieve the current status, branch name (if available), and execution logs for a previously submitted code change request.
+- Example:
+  ```bash
+  curl -X GET http://localhost:8000/github/api/code-change-status/123/ \
+    -H "Authorization: Bearer ACCESS_TOKEN"
+  ```
+- Response:
+  ```json
+  {
+    "success": true,
+    "status": "processing",
+    "branch_name": "ai-changes-20240506-132500",
+    "error_message": null,
+    "execution_log": "...",
+    "codex_logs": "...",
+    "created_at": "2024-05-06T13:25:10.123456",
+    "completed_at": null
+  }
+  ```

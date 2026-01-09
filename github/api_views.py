@@ -9,6 +9,7 @@ import logging
 from datetime import datetime, timezone as dt_timezone
 from urllib.parse import urlencode
 from typing import Dict, Any, Optional
+import threading
 
 import requests
 from django.conf import settings
@@ -17,8 +18,11 @@ from django.http import JsonResponse, HttpResponseRedirect
 from django.utils import timezone
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import IsAuthenticated
+from django.db.models import Q
 
-from .models import GitHubConnection, GitHubRepository
+from .models import GitHubConnection, GitHubRepository, CodeChangeRequest
+from .code_change_service import CodeChangeService
+from product_management.models import WorkflowDocument
 
 logger = logging.getLogger(__name__)
 User = get_user_model()
@@ -316,6 +320,149 @@ def github_disconnect(request):
             'success': False,
             'error': 'No GitHub connection found'
         }, status=404)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def request_code_change(request):
+    """REST endpoint to handle AI-powered code change requests."""
+    try:
+        data = request.data
+        repo_id = data.get('repo_id')
+
+        logger.info(f"Code change request received from user: {request.user.username}")
+        logger.info(f"Repository ID: {repo_id}")
+
+        if not repo_id:
+            logger.warning("Missing required fields in code change request")
+            return JsonResponse({
+                'success': False,
+                'error': 'Missing required fields'
+            }, status=400)
+
+        try:
+            repository = GitHubRepository.objects.get(
+                id=repo_id,
+                connection__user=request.user
+            )
+            logger.info(f"Repository found: {repository.full_name}")
+        except GitHubRepository.DoesNotExist:
+            logger.error(f"Repository not found with ID: {repo_id} for user: {request.user.username}")
+            return JsonResponse({
+                'success': False,
+                'error': 'Repository not found'
+            }, status=404)
+
+        try:
+            github_connection = request.user.github_connection
+            logger.info(f"GitHub connection verified for user: {github_connection.github_username}")
+        except GitHubConnection.DoesNotExist:
+            logger.error(f"No GitHub connection found for user: {request.user.username}")
+            return JsonResponse({
+                'success': False,
+                'error': 'GitHub account not connected'
+            }, status=400)
+
+        # Use the latest generated README document as the change request payload
+        latest_readme = WorkflowDocument.objects.filter(
+            workflow_step__feature_details__repository=repository,
+            document_type='readme'
+        ).filter(
+            Q(workflow_step__project__user=request.user) |
+            Q(workflow_step__user=request.user)
+        ).order_by('-created_at').first()
+
+        if not latest_readme:
+            logger.error(
+                "No README document found for repository %s tied to user %s",
+                repository.full_name,
+                request.user.username
+            )
+            return JsonResponse({
+                'success': False,
+                'error': 'No README document found. Generate a README for this feature before requesting code changes.'
+            }, status=400)
+
+        change_request = latest_readme.content
+        preview = change_request[:100] if isinstance(change_request, str) else ''
+        logger.info(f"Using latest README (doc id {latest_readme.id}) as change request payload: {preview}...")
+
+        code_change_request = CodeChangeRequest.objects.create(
+            repository=repository,
+            user=request.user,
+            change_request=change_request,
+            status='pending'
+        )
+        logger.info(f"Created CodeChangeRequest with ID: {code_change_request.id}")
+
+        code_change_request.add_log(f"Request created by user: {request.user.username}")
+        code_change_request.add_log(f"Repository: {repository.full_name}")
+        code_change_request.add_log(f"Change request (from README {latest_readme.id}): {change_request}")
+
+        def execute_code_change():
+            try:
+                logger.info(f"Starting background thread for request ID: {code_change_request.id}")
+                service = CodeChangeService(
+                    github_connection=github_connection,
+                    repository=repository,
+                    change_request_obj=code_change_request
+                )
+                service.execute()
+                logger.info(f"Background thread completed for request ID: {code_change_request.id}")
+            except Exception as e:
+                logger.error(f"Background thread error for request ID {code_change_request.id}: {str(e)}")
+
+        thread = threading.Thread(target=execute_code_change)
+        thread.daemon = True
+        thread.start()
+        logger.info(f"Background thread started for request ID: {code_change_request.id}")
+
+        return JsonResponse({
+            'success': True,
+            'message': 'Code change request submitted. Processing in background...',
+            'request_id': code_change_request.id
+        })
+
+    except Exception as e:
+        logger.error(f"Unexpected error in request_code_change: {str(e)}", exc_info=True)
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def code_change_status(request, request_id):
+    """REST endpoint to fetch status and logs for a code change request."""
+    try:
+        code_change_request = CodeChangeRequest.objects.get(
+            id=request_id,
+            user=request.user
+        )
+
+        return JsonResponse({
+            'success': True,
+            'status': code_change_request.status,
+            'branch_name': code_change_request.branch_name,
+            'error_message': code_change_request.error_message,
+            'execution_log': code_change_request.execution_log or '',
+            'codex_logs': code_change_request.codex_logs or '',
+            'created_at': code_change_request.created_at.isoformat(),
+            'completed_at': code_change_request.completed_at.isoformat() if code_change_request.completed_at else None
+        })
+
+    except CodeChangeRequest.DoesNotExist:
+        return JsonResponse({
+            'success': False,
+            'error': 'Code change request not found'
+        }, status=404)
+    except Exception as e:
+        logger.error(f"Error fetching code change status: {str(e)}")
+        return JsonResponse({
+            'success': False,
+            'error': str(e)
+        }, status=500)
 
 
 def sync_repositories_internal(github_connection: GitHubConnection) -> int:
